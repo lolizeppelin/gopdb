@@ -79,6 +79,7 @@ class GopDatabase(TableBase):
     # passwd none means database can not be control
     passwd = sa.Column(VARCHAR(128), default=None, nullable=True)
     status = sa.Column(TINYINT, default=common.UNACTIVE, nullable=False)
+    affinity = sa.Column(TINYINT, default=0, nullable=False)
     desc = sa.Column(VARCHAR(256), nullable=True)
     is_master = sa.Column(BOOLEAN, nullable=False, default=True)
     slaves = orm.relationship(GopSalveRelation, lazy='select',

@@ -164,10 +164,11 @@ class DatabaseReuest(BaseContorller):
         impl = body.pop('impl')
         user = body.pop('user')
         passwd = body.pop('passwd')
+        affinity = body.pop('affinity', 0)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = utils.impl_cls(impl)
-        dbresult = dbmanager.create_database(user, passwd, **kwargs)
+        dbresult = dbmanager.create_database(user, passwd, affinity, **kwargs)
         return resultutils.results(data=[dbresult, ])
 
     def show(self, req, database_id, body=None):

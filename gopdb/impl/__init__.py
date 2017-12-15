@@ -67,11 +67,11 @@ class DatabaseManagerBase(object):
     def _show_database(self, session, database, **kwargs):
         """impl show code"""
 
-    def create_database(self, user, passwd, **kwargs):
+    def create_database(self, user, passwd, affinity, **kwargs):
         """create new database intance"""
         session = endpoint_session()
         with session.begin():
-            _database = GopDatabase(user=user, passwd=passwd)
+            _database = GopDatabase(user=user, passwd=passwd, affinity=affinity)
             _result = dict(database_id=_database.database_id)
             with self._create_database(session, _database, **kwargs) as address:
                 host = address[0]
