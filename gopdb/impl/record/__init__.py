@@ -96,7 +96,7 @@ class DataBaseManager(DatabaseManagerBase):
             _record = model_query(session, RecordDatabase,
                                   filter=RecordDatabase.record_id == int(database.reflection_id)).one()
             host = _record.host
-            port = _record.ports
+            port = _record.port
             if database.passwd:
                 connection = connformater % dict(user=database.user, passwd=database.passwd,
                                                  host=host, port=port)
@@ -105,6 +105,7 @@ class DataBaseManager(DatabaseManagerBase):
                                     charcter_set=options.get('charcter_set'),
                                     collation_type=options.get('collation_type'))
                 engine = _engine
+            yield host, port
         except Exception:
             if engine:
                 utils.drop_schema(engine, auths)
@@ -145,7 +146,7 @@ class DataBaseManager(DatabaseManagerBase):
         _record = model_query(session, RecordDatabase,
                               filter=RecordDatabase.record_id == int(database.reflection_id)).one()
         host = _record.host
-        port = _record.ports
+        port = _record.port
         if database.passwd:
             connection = connformater % dict(user=database.user, passwd=database.passwd,
                                              schema=schema,
@@ -156,3 +157,7 @@ class DataBaseManager(DatabaseManagerBase):
                 dropauths = privilegeutils.mysql_privileges(schema)
             utils.drop_schema(engine, dropauths)
         yield host, port
+
+
+    def _create_slave_database(self, *args, **kwargs):
+        raise NotImplementedError

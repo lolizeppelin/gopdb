@@ -137,3 +137,6 @@ class DataBaseManager(DatabaseManagerBase):
             dropauths = privilegeutils.mysql_privileges(schema)
         utils.drop_schema(engine, dropauths)
         yield local_ip, port
+
+    def _create_slave_database(self, *args, **kwargs):
+        raise NotImplementedError

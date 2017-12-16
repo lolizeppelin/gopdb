@@ -1,3 +1,4 @@
+import re
 import webob.exc
 
 from sqlalchemy.sql import and_
@@ -23,7 +24,7 @@ from goperation.manager.exceptions import CacheStoneError
 from goperation.manager.wsgi.contorller import BaseContorller
 from goperation.manager.wsgi.exceptions import RpcPrepareError
 from goperation.manager.wsgi.exceptions import RpcResultError
-
+from goperation.manager.wsgi.entity.controller import EntityReuest
 
 from gopdb import common
 from gopdb import utils
@@ -53,32 +54,30 @@ FAULT_MAP = {InvalidArgument: webob.exc.HTTPClientError,
              MultipleResultsFound: webob.exc.HTTPInternalServerError
              }
 
+MANAGERCACHE = {}
+
+entity_controller = EntityReuest()
+
+
+def _impl(database_id):
+    try:
+        return MANAGERCACHE[database_id]
+    except KeyError:
+        session = endpoint_session(readonly=True)
+        try:
+            database = model_query(session, GopDatabase, GopDatabase.database_id == database_id).one()
+            dbmanager = utils.impl_cls(database.impl)
+            MANAGERCACHE.setdefault(database_id, dbmanager)
+            return dbmanager
+        finally:
+            session.close()
+
 
 @singleton.singleton
 class DatabaseReuest(BaseContorller):
 
-    LOGSCHEMA = {
-        'type': 'object',
-        'required': ['start', 'end', 'size_change', 'logfile', 'detail'],
-        'properties':
-            {
-                'start': {'type': 'integer'},
-                'end': {'type': 'integer'},
-                'size_change': {'type': 'integer'},
-                'logfile': {'type': 'string'},
-                'detail': {'oneOf': [{'type': 'object'},
-                                     {'type': 'null'}],
-                           'description': 'detail of request'},
-            }
-    }
-
     # TODO cache dbmanager of database_id
-    def _impl(self, database_id):
-        session = endpoint_session(readonly=True)
-        database = model_query(session, GopDatabase, GopDatabase.database_id == database_id).one()
-        dbmanager = utils.impl_cls(database.impl)
-        session.close()
-        return dbmanager
+
 
     def select(self, req, body=None):
         body = body or {}
@@ -147,7 +146,7 @@ class DatabaseReuest(BaseContorller):
         master = body.get('master', True)
         kwargs = dict(req=req)
         kwargs.update(body)
-        dbmanager = self._impl(database_id)
+        dbmanager = _impl(database_id)
         dbresult = dbmanager.show_database(database_id, master, **kwargs)
         return resultutils.results(result='show database success', data=[dbresult, ])
 
@@ -163,7 +162,7 @@ class DatabaseReuest(BaseContorller):
         body = body or {}
         kwargs = dict(req=req)
         kwargs.update(body)
-        dbmanager = self._impl(database_id)
+        dbmanager = _impl(database_id)
         dbresult = dbmanager.delete_database(database_id, **kwargs)
         return resultutils.results(result='delete database success', data=[dbresult, ])
 
@@ -182,6 +181,34 @@ class DatabaseReuest(BaseContorller):
 
 @singleton.singleton
 class SchemaReuest(BaseContorller):
+
+    AUTHSCHEMA = {
+        'type': 'object',
+        'required': ['user', 'passwd', 'ro_user', 'ro_passwd', 'source'],
+        'properties':
+            {
+                'user': {'type': 'string'},
+                'passwd': {'type': 'string'},
+                'ro_user': {'type': 'string'},
+                'ro_passwd': {'type': 'string'},
+                'source': {'type': 'string'},
+            }
+    }
+
+    OPTSCHEMA = {
+        'type': 'object',
+        'properties':
+            {
+                'charcter_set': {'type': 'string'},
+                'collation_type': {'type': 'string'},
+            }
+    }
+
+    SCHEMAREG = re.compile('^[a-z][a-z0-9_]+$', re.IGNORECASE)
+
+    def _validate_schema(self, schema):
+        if not schema or not re.match(self.SCHEMAREG, schema):
+            raise InvalidArgument('Schema name %s not match' % schema)
 
     def index(self, req, database_id, body=None):
         body = body or {}
@@ -205,21 +232,33 @@ class SchemaReuest(BaseContorller):
         return results
 
     def create(self, req, database_id, body=None):
+        """
+        body = {'auth': {'user': 'root', 'passwd': '1111',
+                 'ro_user': 'selecter', 'ro_passwd': '111',
+                 'source': '%'},
+        'options': {'charcter_set': 'utf-8', 'collation_type': None},
+        'name': 'gamserver_db_1'}
+        """
         body = body or {}
-        auth = body.pop('auth')
-        options = body.pop('options')
+        auth = body.pop('auth', None)
+        options = body.pop('options', None)
+        schema = body.pop('name', None)
+        self._validate_schema(schema)
+        jsonutils.schema_validate(auth, self.AUTHSCHEMA)
+        if options:
+            jsonutils.schema_validate(options, self.OPTSCHEMA)
         kwargs = dict(req=req)
         kwargs.update(body)
-        dbmanager = self._impl(database_id)
-        dbresult = dbmanager.create_schema(database_id, auth, options, **kwargs)
-        resultutils.results(result='create empty schema success', data=[dbresult, ])
+        dbmanager = _impl(database_id)
+        dbresult = dbmanager.create_schema(database_id, schema, auth, options, **kwargs)
+        return resultutils.results(result='create empty schema success', data=[dbresult, ])
 
     def show(self, req, database_id, schema, body=None):
         body = body or {}
         secret = body.get('secret', False)
         kwargs = dict(req=req)
         kwargs.update(body)
-        dbmanager = self._impl(database_id)
+        dbmanager = _impl(database_id)
         dbresult = dbmanager.show_schema(database_id, schema, secret, **kwargs)
         return resultutils.results(result='show schema success', data=[dbresult, ])
 
@@ -230,7 +269,7 @@ class SchemaReuest(BaseContorller):
         body = body or {}
         kwargs = dict(req=req)
         kwargs.update(body)
-        dbmanager = self._impl(database_id)
+        dbmanager = _impl(database_id)
         dbresult = dbmanager.delete_schema(database_id, schema, **kwargs)
         return resultutils.results(result='delete schema success', data=[dbresult, ])
 
@@ -241,7 +280,7 @@ class SchemaReuest(BaseContorller):
         auth = body.pop('auth')
         kwargs = dict(req=req)
         kwargs.update(body)
-        dbmanager = self._impl(database_id)
+        dbmanager = _impl(database_id)
         dbresult = dbmanager.copy_schema(database_id, schema,
                                          target_database_id, target_schema,
                                          auth, **kwargs)
@@ -253,8 +292,12 @@ class SchemaReuest(BaseContorller):
         body = body or {}
         slave = body.get('slave')
         desc = body.get('desc')
+        esure = body.get('esure', True)
         entity = int(body.pop('entity'))
-        endpoint = int(body.pop(common.ENDPOINTKEY))
+        endpoint = body.pop(common.ENDPOINTKEY)
+        if esure:
+            # TODO log entity info
+            entity_info = entity_controller.show(req=req, endpoint=endpoint, entity=entity)['data'][0]
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id == database_id,
                                                               GopDatabase.is_master == True))
@@ -266,7 +309,7 @@ class SchemaReuest(BaseContorller):
                 _schema = __schema
                 break
         if not _schema:
-            raise exceptions.AcceptableSchemaError('Schema not found')
+            raise exceptions.AcceptableSchemaError('Schema %s not found' % schema)
         quote_database_id = _database.database_id
         # glock = get_global().lock('entitys')
         # with glock(common.DB, [entity, ]):
@@ -315,13 +358,12 @@ class SchemaReuest(BaseContorller):
                     )
         if body.get('schema', False):
             schema = schema_quote.schema
-            data.setdefault('schema', schema.schema)
-            data.setdefault('charcter_set', schema.charcter_set)
-            data.setdefault('collation_type', schema.collation_type)
-            data.setdefault('desc', schema.desc)
+            data.setdefault('schema', dict(schema=schema.schema,
+                                           charcter_set=schema.charcter_set,
+                                           collation_type=schema.collation_type))
         if body.get('database', False):
             database = schema_quote.database
-            data.setdefault('impl', database.impl)
-            data.setdefault('reflection_id', database.reflection_id)
-            data.setdefault('is_master', database.is_master)
+            data.setdefault('database', dict(impl=database.impl,
+                                             reflection_id=database.reflection_id,
+                                             is_master=database.is_master))
         return resultutils.results(result='get quote success', data=[data, ])

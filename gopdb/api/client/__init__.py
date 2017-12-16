@@ -149,7 +149,7 @@ class GopCdnClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def schemas_delete(self, database_id, schema, body):
+    def schemas_delete(self, database_id, schema, body=None):
         resp, results = self.delete(action=self.schema_path % (str(database_id), schema), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='delete schema info from %s fail:%d' %
@@ -167,10 +167,11 @@ class GopCdnClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def schemas_bond(self, database_id, schema, entity, endpoint, body):
+    def schemas_bond(self, database_id, schema, entity, endpoint, body=None):
+        body = body or {}
         body.update({ENDPOINTKEY: endpoint})
         body.update({'entity': entity})
-        resp, results = self.delete(action=self.schema_path_ex % (str(database_id), schema, 'bond'), body=body)
+        resp, results = self.post(action=self.schema_path_ex % (str(database_id), schema, 'bond'), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='bond schema info on %s fail:%d' %
                                                     (str(database_id), results['resultcode']),
@@ -178,7 +179,7 @@ class GopCdnClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def quote_show(self, quote_id, body):
+    def quote_show(self, quote_id, body=None):
         resp, results = self.get(action=self.quote_path % str(quote_id), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='show quote %s info fail:%d' %

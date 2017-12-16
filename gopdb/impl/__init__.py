@@ -119,6 +119,10 @@ class DatabaseManagerBase(object):
         """create a slave database for database with database_id"""
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def _create_slave_database(self, *args, **kwargs):
+        raise NotImplementedError
+
     def delete_slave_database(self, database_id, **kwargs):
         """delete a slave database"""
         session = endpoint_session()
@@ -199,7 +203,7 @@ class DatabaseManagerBase(object):
                 raise exceptions.AcceptableDbError('Database is slave, can not create schema')
             if _database.status != common.OK:
                 raise exceptions.AcceptableDbError('Database is not OK now')
-            schemas = [_schema.name for _schema in _database.schemas]
+            schemas = [_schema.schema for _schema in _database.schemas]
             if schema in schemas:
                 raise exceptions.AcceptableDbError('Duplicate schema name Duplicate')
             with self._create_schema(session, _database, schema, auths, options, **kwargs) as address:
@@ -210,7 +214,7 @@ class DatabaseManagerBase(object):
                                        ro_user=auth.get('ro_user'),
                                        ro_passwd=auth.get('ro_passwd'),
                                        source=auth.get('source'),
-                                       charcter_set=options.get('charcter_set'),
+                                       charcter_set=options.get('charcter_set') or 'utf8',
                                        collation_type=options.get('collation_type'))
                 session.add(gop_schema)
                 session.flush()
@@ -311,6 +315,7 @@ class DatabaseManagerBase(object):
                 _result.setdefault('host', host)
                 _result.setdefault('port', port)
                 _result.setdefault('schema', schema)
+                squery.delete()
         return _result
 
     @abc.abstractmethod
