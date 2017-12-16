@@ -35,7 +35,7 @@ class Routers(router.RoutersBase):
 
         resource_name = 'schema'
         collection_name = resource_name + 's'
-        schema_controller = controller_return_response(controller.DatabaseReuest(),
+        schema_controller = controller_return_response(controller.SchemaReuest(),
                                                        controller.FAULT_MAP)
 
         collection = mapper.collection(collection_name=collection_name,
@@ -49,9 +49,9 @@ class Routers(router.RoutersBase):
         collection.member.link('bond', method='POST')
 
         self._add_resource(mapper, schema_controller,
-                           path='/%s/schema/quote/quote_id' % common.DB,
+                           path='/%s/quotes/{quote_id}' % common.DB,
                            get_action='quote')
 
         self._add_resource(mapper, schema_controller,
-                           path='/%s/schema/quote/quote_id' % common.DB,
+                           path='/%s/quotes/{quote_id}' % common.DB,
                            delete_action='unquote')

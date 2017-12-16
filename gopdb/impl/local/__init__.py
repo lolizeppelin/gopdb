@@ -29,7 +29,7 @@ class DataBaseManager(DatabaseManagerBase):
         agent_attributes = entity_controller.agent_attributes(agent_id)
         if not agent_attributes:
             raise exceptions.AcceptableDbError('Agent %d not online or not exist' % agent_id)
-        return agent_attributes.get('local_ip'), port
+        yield agent_attributes.get('local_ip'), port
 
     @contextlib.contextmanager
     def _show_database(self, session, database, **kwargs):
@@ -76,7 +76,7 @@ class DataBaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):
         req = kwargs.pop('req')
-        return self._get_entity(req, int(database.reflection_id))
+        yield self._get_entity(req, int(database.reflection_id))
 
     @contextlib.contextmanager
     def _create_schema(self, session,

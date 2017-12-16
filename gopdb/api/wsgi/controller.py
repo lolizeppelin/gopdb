@@ -31,6 +31,7 @@ from gopdb import utils
 from gopdb.api import endpoint_session
 
 from gopdb.models import GopDatabase
+from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
 
 from gopdb.impl import exceptions
@@ -90,8 +91,8 @@ class DatabaseReuest(BaseContorller):
         page_num = int(body.pop('page_num', 0))
 
         slaves = body.pop('slaves', False)
-        schemas = body.pop('schemas', False)
-        quotes = body.pop('quotes', False)
+        # schemas = body.pop('schemas', False)
+        # quotes = body.pop('quotes', False)
         impl = body.get('quotes', None)
         session = endpoint_session(readonly=True)
         _filter = None
@@ -109,24 +110,10 @@ class DatabaseReuest(BaseContorller):
         if slaves:
             columns.append(GopDatabase.slaves)
             options.append(joinedload(GopDatabase.slaves, innerjoin=False))
-        if schemas:
-            columns.append(GopDatabase.schemas)
-            options.append(joinedload(GopDatabase.schemas, innerjoin=False))
-        if quotes:
-            columns.append(GopDatabase.quotes)
-            options.append(joinedload(GopDatabase.quotes, innerjoin=False))
 
         results = resultutils.bulk_results(session,
                                            model=GopDatabase,
-                                           columns=[GopDatabase.database_id,
-                                                    GopDatabase.is_master,
-                                                    GopDatabase.impl,
-                                                    GopDatabase.reflection_id,
-                                                    GopDatabase.status,
-                                                    GopDatabase.desc,
-                                                    GopDatabase.slaves,
-                                                    GopDatabase.schemas,
-                                                    GopDatabase.quotes],
+                                           columns=columns,
                                            counter=GopDatabase.database_id,
                                            order=order, desc=desc,
                                            option=options,
@@ -138,38 +125,22 @@ class DatabaseReuest(BaseContorller):
             column['slaves'] = []
             for slave in slaves:
                 column['slaves'].append(dict(database_id=slave.package_id, readonly=slave.slave))
-
-            schemas = column.get('schemas', [])
-            column['schemas'] = []
-            for schema in schemas:
-                column['schemas'].append(dict(schema_id=schema.schema_id,
-                                              schema=schema.schema,
-                                              charcter_set=schema.charcter_set,
-                                              collation_type=schema.collation_type,
-                                              desc=schema.desc))
-
-            quotes = column.get('quotes', [])
-            column['quotes'] = []
-            for quote in quotes:
-                column['quotes'].append(dict(quote_id=quote.quote_id,
-                                             schema_id=quote.schema_id,
-                                             entity=quote.entity,
-                                             endpoint=quote.endpoint,
-                                             desc=quote.desc))
-
         return results
 
     def create(self, req, body=None):
         body = body or {}
-        impl = body.pop('impl')
-        user = body.pop('user')
-        passwd = body.pop('passwd')
+        try:
+            impl = body.pop('impl')
+            user = body.pop('user')
+            passwd = body.pop('passwd')
+        except KeyError as e:
+            raise InvalidArgument('miss key: %s' % e.message)
         affinity = body.pop('affinity', 0)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = utils.impl_cls(impl)
         dbresult = dbmanager.create_database(user, passwd, affinity, **kwargs)
-        return resultutils.results(data=[dbresult, ])
+        return resultutils.results(result='create database success', data=[dbresult, ])
 
     def show(self, req, database_id, body=None):
         body = body or {}
@@ -178,7 +149,7 @@ class DatabaseReuest(BaseContorller):
         kwargs.update(body)
         dbmanager = self._impl(database_id)
         dbresult = dbmanager.show_database(database_id, master, **kwargs)
-        return resultutils.results(data=[dbresult, ])
+        return resultutils.results(result='show database success', data=[dbresult, ])
 
     def update(self, req, database_id, body=None):
         body = body or {}
@@ -194,7 +165,7 @@ class DatabaseReuest(BaseContorller):
         kwargs.update(body)
         dbmanager = self._impl(database_id)
         dbresult = dbmanager.delete_database(database_id, **kwargs)
-        return resultutils.results(data=[dbresult, ])
+        return resultutils.results(result='delete database success', data=[dbresult, ])
 
     def start(self, req, database_id, body=None):
         body = body or {}
@@ -213,9 +184,28 @@ class DatabaseReuest(BaseContorller):
 class SchemaReuest(BaseContorller):
 
     def index(self, req, database_id, body=None):
-        pass
+        body = body or {}
+        order = body.pop('order', None)
+        desc = body.pop('desc', False)
+        page_num = int(body.pop('page_num', 0))
+
+        session = endpoint_session(readonly=True)
+        results = resultutils.bulk_results(session,
+                                           model=GopSchema,
+                                           columns=[GopSchema.schema_id,
+                                                    GopSchema.schema,
+                                                    GopSchema.database_id,
+                                                    GopSchema.schema,
+                                                    GopSchema.charcter_set,
+                                                    GopSchema.collation_type,
+                                                    ],
+                                           counter=GopSchema.schema_id,
+                                           order=order, desc=desc,
+                                           page_num=page_num)
+        return results
 
     def create(self, req, database_id, body=None):
+        body = body or {}
         auth = body.pop('auth')
         options = body.pop('options')
         kwargs = dict(req=req)
@@ -225,23 +215,27 @@ class SchemaReuest(BaseContorller):
         resultutils.results(result='create empty schema success', data=[dbresult, ])
 
     def show(self, req, database_id, schema, body=None):
+        body = body or {}
+        secret = body.get('secret', False)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = self._impl(database_id)
-        dbresult = dbmanager.show_schema(database_id, schema, **kwargs)
-        resultutils.results(result='show schema success', data=[dbresult, ])
+        dbresult = dbmanager.show_schema(database_id, schema, secret, **kwargs)
+        return resultutils.results(result='show schema success', data=[dbresult, ])
 
     def update(self, req, database_id, schema, body=None):
         raise NotImplementedError
 
     def delete(self, req, database_id, schema, body=None):
+        body = body or {}
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = self._impl(database_id)
         dbresult = dbmanager.delete_schema(database_id, schema, **kwargs)
-        resultutils.results(result='delete schema success', data=[dbresult, ])
+        return resultutils.results(result='delete schema success', data=[dbresult, ])
 
     def copy(self, req, database_id, schema, body=None):
+        body = body or {}
         target_database_id = body.pop('target.database_id')
         target_schema = body.pop('target.schema')
         auth = body.pop('auth')
@@ -251,8 +245,8 @@ class SchemaReuest(BaseContorller):
         dbresult = dbmanager.copy_schema(database_id, schema,
                                          target_database_id, target_schema,
                                          auth, **kwargs)
-        resultutils.results(result='copy schema from %d.%s success' % (database_id, schema),
-                            data=[dbresult, ])
+        return resultutils.results(result='copy schema from %d.%s success' % (database_id, schema),
+                                   data=[dbresult, ])
 
     def bond(self, req, database_id, schema, body=None):
         """schema quote"""
@@ -264,9 +258,7 @@ class SchemaReuest(BaseContorller):
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id == database_id,
                                                               GopDatabase.is_master == True))
-        if slave is not None:
-            query = query.optione(joinedload(GopDatabase.slaves))
-        query = query.optione(joinedload(GopDatabase.schemas))
+        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         _database = query.one()
         _schema = None
         for __schema in _database.schemas:
@@ -276,20 +268,21 @@ class SchemaReuest(BaseContorller):
         if not _schema:
             raise exceptions.AcceptableSchemaError('Schema not found')
         quote_database_id = _database.database_id
-        if slave is not None:
-            if slave > 0:
-                if slave not in _database.slaves:
-                    raise exceptions.AcceptableDbError('Slave %d not found' % slave)
-                quote_database_id = slave
-            else:
-                # TODO auto select database
-                quote_database_id = _database.slaves[0]
-        schema_quote = SchemaQuote(schema_id=_schema.schema_id,
-                                   database_id=quote_database_id,
-                                   entity=entity, endpoint=endpoint, desc=desc)
         # glock = get_global().lock('entitys')
         # with glock(common.DB, [entity, ]):
         with session.begin():
+            if slave is not None:
+                if slave > 0:
+                    slaves = [_slave.slave_id for _slave in _database.slaves]
+                    if slave not in slaves:
+                        raise exceptions.AcceptableDbError('Slave %d not found' % slave)
+                    quote_database_id = slave
+                else:
+                    # TODO auto select database
+                    quote_database_id = _database.slaves[0]
+            schema_quote = SchemaQuote(schema_id=_schema.schema_id,
+                                       database_id=quote_database_id,
+                                       entity=entity, endpoint=endpoint, desc=desc)
             session.add(schema_quote)
             session.flush()
         return resultutils.results(result='quote to %s.%d success' % (schema_quote.database_id,

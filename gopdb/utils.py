@@ -9,8 +9,8 @@ def impl_cls(impl):
     try:
         return IMPLMAP[impl]()
     except KeyError:
-        with goperation.lock('gopdb-impl'):
-            cls_string = 'gopdb.impl.%s.DataBaseManager'
+        with goperation.lock.get('gopdb-impl'):
+            cls_string = 'gopdb.impl.%s.DataBaseManager' % impl
             cls = importutils.import_class(cls_string)
             IMPLMAP.setdefault(impl, cls)
             return cls()

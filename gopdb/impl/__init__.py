@@ -30,10 +30,8 @@ class DatabaseManagerBase(object):
         session = endpoint_session(readonly=True)
         query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id == database_id,
                                                               GopDatabase.is_master == master))
-        query = query.optione(joinedload(GopDatabase.quotes))
         if master:
-            query = query.optione(joinedload(GopDatabase.schemas))
-            query = query.optione(joinedload(joinedload(GopDatabase.slaves)))
+            query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
             _database = query.one()
             schemas = _database.schemas
         else:
@@ -42,7 +40,7 @@ class DatabaseManagerBase(object):
                                      filter=GopDatabase.slave_id == database_id).all()
             query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id.in_(master_ids),
                                                                   GopDatabase.is_master == master))
-            query = query.optione(joinedload(GopDatabase.schemas))
+            query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
             schemas = []
             for m_database in query.all():
                 schemas.extend(m_database.schemas)
@@ -50,7 +48,8 @@ class DatabaseManagerBase(object):
                        schemas=[dict(schema=schema.schema,
                                      schema_id=schema.schema_id
                                      ) for schema in schemas],
-                       quotes=[dict(entity=quote.entity, endpoint=quote.endpoint,
+                       quotes=[dict(entity=quote.entity,
+                                    endpoint=quote.endpoint,
                                     quote_id=quote.quote_id,
                                     schema_id=quote.schema_id)
                                for quote in _database.quotes])
@@ -71,8 +70,8 @@ class DatabaseManagerBase(object):
         """create new database intance"""
         session = endpoint_session()
         with session.begin():
-            _database = GopDatabase(user=user, passwd=passwd, affinity=affinity)
-            _result = dict(database_id=_database.database_id)
+            _database = GopDatabase(user=user, passwd=passwd, affinity=affinity, is_master=True)
+            _result = dict()
             with self._create_database(session, _database, **kwargs) as address:
                 host = address[0]
                 port = address[1]
@@ -82,6 +81,7 @@ class DatabaseManagerBase(object):
                     raise exceptions.UnAcceptableDbError('Can not add slave database from api create database')
                 session.add(_database)
                 session.flush()
+        _result.setdefault('database_id', _database.database_id)
         return _result
 
     @abc.abstractmethod
@@ -92,8 +92,7 @@ class DatabaseManagerBase(object):
         """delete master database intance"""
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
-        query = query.optione(joinedload(GopDatabase.schemas))
-        query = query.optione(joinedload(joinedload(GopDatabase.slaves)))
+        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         with session.begin():
             _database = query.one()
             _result = dict(database_id=_database.database_id)
@@ -124,7 +123,7 @@ class DatabaseManagerBase(object):
         """delete a slave database"""
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
-        query = query.optione(joinedload(GopDatabase.quotes))
+        query = query.options(joinedload(GopDatabase.quotes, innerjoin=False))
         with session.begin():
             slave = query.one_or_none()
             _result = dict(database_id=slave.database_id)
@@ -152,11 +151,11 @@ class DatabaseManagerBase(object):
     def _delete_slave_database(self, session, slave, masters, **kwargs):
         """impl delete a slave database code"""
 
-    def show_schema(self, database_id, schema, **kwargs):
+    def show_schema(self, database_id, schema, secret, **kwargs):
         """show schema info"""
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
-        query = query.optione(joinedload(GopDatabase.schemas))
+        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         _database = query.one()
         if not _database.is_master:
             raise exceptions.AcceptableDbError('Database is slave, can not get schema')
@@ -171,6 +170,11 @@ class DatabaseManagerBase(object):
                        schema=_schema.schema,
                        schema_id=_schema.schema_id,
                        desc=_schema.desc)
+        if secret:
+            _result.update({'user': _schema.user,
+                            'passwd': _schema.passwd,
+                            'ro_user': _schema.ro_user,
+                            'ro_passwd': _schema.ro_passwd})
         with self._show_schema(session, _database, _schema, **kwargs) as address:
             host = address[0]
             port = address[1]
@@ -187,7 +191,7 @@ class DatabaseManagerBase(object):
         auths = privilegeutils.mysql_privileges(auth)
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
-        query = query.optione(joinedload(GopDatabase.schemas))
+        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         with session.begin():
             _database = query.one()
             _result = dict(database_id=database_id)
@@ -232,7 +236,7 @@ class DatabaseManagerBase(object):
         session = endpoint_session()
         query = model_query(session, GopDatabase,
                             filter=GopDatabase.database_id.in_([src_database_id, dst_database_id]))
-        query = query.optione(joinedload(GopDatabase.schemas))
+        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         src_database, dst_database = None, None
         for _database in query.all():
             if _database.database_id == src_database_id:
@@ -289,7 +293,7 @@ class DatabaseManagerBase(object):
         """delete schema intance on reflection_id"""
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
-        query = query.optione(joinedload(GopDatabase.schemas))
+        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         with session.begin():
             _database = query.one()
             _result = dict(database_id=_database.database_id)
@@ -297,7 +301,7 @@ class DatabaseManagerBase(object):
                 raise exceptions.AcceptableDbError('can not delete schema from slave database')
             squery = model_query(session, GopSchema, filter=and_(GopSchema.schema == schema,
                                                                  GopSchema.database_id == database_id))
-            squery = squery.optione(joinedload(GopSchema.quotes))
+            squery = squery.options(joinedload(GopSchema.quotes, innerjoin=False))
             _schema = squery.one()
             if _schema.quotes:
                 raise exceptions.AcceptableSchemaError('Schema in quote list')

@@ -1,6 +1,9 @@
 import contextlib
 from sqlalchemy.pool import NullPool
 
+
+from simpleutil.utils import attributes
+
 from simpleservice.ormdb.api import model_query
 from simpleservice.ormdb.tools import utils
 
@@ -26,8 +29,8 @@ class DataBaseManager(DatabaseManagerBase):
 
     @contextlib.contextmanager
     def _create_database(self, session, database, **kwargs):
-        host = kwargs.get('host')
-        port = kwargs.get('port')
+        host = attributes.validators['type:hostname_or_ip'](kwargs.get('host'))
+        port = attributes.validators['type:port'](kwargs.get('port'))
         extinfo = kwargs.get('extinfo')
         desc = kwargs.get('desc')
         _record = RecordDatabase(host=host, port=port, extinfo=extinfo)
@@ -37,7 +40,7 @@ class DataBaseManager(DatabaseManagerBase):
         database.desc = desc
         database.status = common.OK
         database.reflection_id = str(_record.record_id)
-        return host, port
+        yield host, port
 
     @contextlib.contextmanager
     def _delete_database(self, session, database, **kwargs):
@@ -82,7 +85,7 @@ class DataBaseManager(DatabaseManagerBase):
                               filter=RecordDatabase.record_id == int(database.reflection_id)).one()
         host = _record.host
         port = _record.port
-        return host, port
+        yield host, port
 
     @contextlib.contextmanager
     def _create_schema(self, session,

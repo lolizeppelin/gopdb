@@ -64,7 +64,6 @@ class GopSalveRelation(TableBase):
     slave_id = sa.Column(INTEGER(unsigned=True), nullable=False, primary_key=True)
     readonly = sa.Column(BOOLEAN, nullable=False, default=True)
     __table_args__ = (
-        sa.Index('salve_index', slave_id),
         InnoDBTableBase.__table_args__
     )
 
@@ -74,7 +73,7 @@ class GopDatabase(TableBase):
                             autoincrement=True)
     #  local, record, cloud.aliyun, cloud.qcloud
     impl = sa.Column(VARCHAR(64), default=None, nullable=False)
-    reflection_id = sa.Column(VARCHAR(256), nullable=False)
+    reflection_id = sa.Column(VARCHAR(128), nullable=False)
     user = sa.Column(VARCHAR(64), default=None, nullable=False)
     # passwd none means database can not be control
     passwd = sa.Column(VARCHAR(128), default=None, nullable=True)
@@ -96,8 +95,8 @@ class GopDatabase(TableBase):
 
 class RecordDatabase(TableBase):
     record_id = sa.Column(INTEGER(unsigned=True), nullable=False, primary_key=True, autoincrement=True)
-    host = sa.Column(VARCHAR(256), default=None, nullable=True)
-    port = sa.Column(SMALLINT(unsigned=True), default=3306, nullable=True)
+    host = sa.Column(VARCHAR(200), default=None, nullable=False)
+    port = sa.Column(SMALLINT(unsigned=True), default=3306, nullable=False)
     extinfo = sa.Column(BLOB, nullable=True, default=None)
     __table_args__ = (
         sa.UniqueConstraint('host', 'port', name='unique_record'),
@@ -106,9 +105,9 @@ class RecordDatabase(TableBase):
 
 
 class CloudDatabase(TableBase):
-    intance_id = sa.Column(VARCHAR(256), nullable=False)
-    host = sa.Column(VARCHAR(256), default=None, nullable=True)
-    port = sa.Column(SMALLINT(unsigned=True), default=3306, nullable=True)
+    intance_id = sa.Column(VARCHAR(128), nullable=False, primary_key=True)
+    host = sa.Column(VARCHAR(200), default=None, nullable=False)
+    port = sa.Column(SMALLINT(unsigned=True), default=3306, nullable=False)
     extinfo = sa.Column(BLOB, nullable=True, default=None)
     __table_args__ = (
         sa.UniqueConstraint('host', 'port', name='unique_intance'),
