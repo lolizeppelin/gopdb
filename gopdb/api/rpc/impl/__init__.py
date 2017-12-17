@@ -2,21 +2,30 @@ import six
 import abc
 
 
+
 @six.add_metaclass(abc.ABCMeta)
 class DatabaseManagerBase(object):
 
-
-    def status(self):
+    @abc.abstractmethod
+    def status(self, config, **kwargs):
         pass
 
-    def start(self, configfile, **kwargs):
+    @abc.abstractmethod
+    def start(self, config, **kwargs):
         pass
 
-    def stop(self, configfile, **kwargs):
+    @abc.abstractmethod
+    def stop(self, config, **kwargs):
         pass
 
-    def install(self):
+    @abc.abstractmethod
+    def install(self, config, **kwargs):
         pass
 
-    def dump(self):
+    @abc.abstractmethod
+    def dump(self, config, **kwargs):
         pass
+
+    @abc.abstractmethod
+    def prepare_conf(self, config, **kwargs):
+        """"""

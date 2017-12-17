@@ -25,6 +25,7 @@ from goperation.manager.rpc.exceptions import RpcTargetLockException
 
 
 from gopdb import common
+from gopdb import utils
 
 from gopdb.api.client import GopDBClient
 
@@ -76,6 +77,7 @@ class Application(AppEndpointBase):
         self.client = GopDBClient(get_http())
         self.delete_tokens = {}
         self.konwn_database = {}
+        self.konwn_pids = {}
 
     @property
     def apppathname(self):
@@ -93,6 +95,9 @@ class Application(AppEndpointBase):
 
     def _db_conf(self, entity, dbtype):
         return os.path.join(self.entity_home(entity), '%.conf' % dbtype)
+
+    def _state_path(self, entity):
+        return os.path.join(self.endpoint_home, 'run')
 
     def _allocate_port(self, entity):
         port = self.manager.frozen_port(self, common.DB, entity, ports=[None, ])
@@ -124,8 +129,13 @@ class Application(AppEndpointBase):
 
     def create_entity(self, entity, **kwargs):
         dbtype = kwargs.pop('dbtype')
+        dbmanager = utils.impl_cls('rpc', dbtype)
+
         configfile = self._db_conf(entity, dbtype)
         with self._prepare_entity_path(entity, apppath=False):
+            dbconfig = dbmanager.prepare_conf(**kwargs)
+            dbconfig.port = self._allocate_port(entity)
+            dbconfig.dump(configfile)
             # build config
             # get port
             # replace post
