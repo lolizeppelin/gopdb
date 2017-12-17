@@ -4,4 +4,19 @@ import abc
 
 @six.add_metaclass(abc.ABCMeta)
 class DatabaseManagerBase(object):
-    pass
+
+
+    def status(self):
+        pass
+
+    def start(self, configfile, **kwargs):
+        pass
+
+    def stop(self, configfile, **kwargs):
+        pass
+
+    def install(self):
+        pass
+
+    def dump(self):
+        pass
