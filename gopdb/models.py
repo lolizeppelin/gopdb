@@ -75,6 +75,7 @@ class GopDatabase(TableBase):
     impl = sa.Column(VARCHAR(64), default=None, nullable=False)
     # database type
     dbtype = sa.Column(VARCHAR(64), default='mysql', nullable=False)
+    dbversion = sa.Column(VARCHAR(64), default=None, nullable=True)
     reflection_id = sa.Column(VARCHAR(128), nullable=False)
     user = sa.Column(VARCHAR(64), default=None, nullable=False)
     # passwd none means database can not be control

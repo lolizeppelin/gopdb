@@ -41,6 +41,7 @@ class DatabaseManagerBase(object):
         _result = dict(database_id=database_id,
                        impl=_database.impl,
                        dbtype=_database.dbtype,
+                       dbversion=_database.dbversion,
                        schemas=[dict(schema=schema.schema,
                                      schema_id=schema.schema_id
                                      ) for schema in schemas],
@@ -63,13 +64,15 @@ class DatabaseManagerBase(object):
     def _show_database(self, session, database, **kwargs):
         """impl show code"""
 
-    def create_database(self, user, passwd, dbtype, affinity, **kwargs):
+    def create_database(self, user, passwd, dbtype, dbversion, affinity, **kwargs):
         """create new database intance"""
         session = endpoint_session()
         with session.begin():
-            _database = GopDatabase(user=user, passwd=passwd, dbtype=dbtype, affinity=affinity, is_master=True,
+            _database = GopDatabase(user=user, passwd=passwd, is_master=True,
+                                    dbtype=dbtype, dbversion=dbversion, affinity=affinity,
                                     desc=kwargs.pop('desc'))
-            _result = dict()
+            _result = dict(dbversion=_database.dbversion,
+                           dbtype=_database.dbtype)
             with self._create_database(session, _database, **kwargs) as address:
                 host = address[0]
                 port = address[1]
@@ -81,7 +84,6 @@ class DatabaseManagerBase(object):
                 session.flush()
         self._esure_create(_database, **kwargs)
         _result.setdefault('database_id', _database.database_id)
-        _result.setdefault('dbtype', _database.dbtype)
         return _result
 
     @abc.abstractmethod
@@ -98,7 +100,8 @@ class DatabaseManagerBase(object):
         query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         with session.begin():
             _database = query.one()
-            _result = dict(database_id=_database.database_id, impl=_database.impl, dbtype=_database.dbtype)
+            _result = dict(database_id=_database.database_id, impl=_database.impl, dbtype=_database.dbtype,
+                           dbversion=_database.dbversion)
             if not _database.is_master:
                 raise exceptions.AcceptableDbError('can not delete slave database from this api')
             if _database.schemas or _database.slaves:
@@ -133,7 +136,8 @@ class DatabaseManagerBase(object):
         query = query.options(joinedload(GopDatabase.quotes, innerjoin=False))
         with session.begin():
             slave = query.one_or_none()
-            _result = dict(database_id=slave.database_id)
+            _result = dict(database_id=slave.database_id, impl=slave.impl, dbtype=slave.dbtype,
+                           dbversion=slave.dbversion)
             if slave.is_master:
                 raise exceptions.AcceptableDbError('Target database is not a slave database')
             if slave.quotes:
@@ -178,6 +182,7 @@ class DatabaseManagerBase(object):
         _result = dict(database_id=database_id,
                        impl=_database.impl,
                        dbtype=_database.dbtype,
+                       dbversion=_database.dbversion,
                        schema=_schema.schema,
                        schema_id=_schema.schema_id,
                        desc=_schema.desc)
@@ -205,7 +210,8 @@ class DatabaseManagerBase(object):
         query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         with session.begin():
             _database = query.one()
-            _result = dict(database_id=database_id, impl=_database.impl, dbtype=_database.dbtype)
+            _result = dict(database_id=database_id, impl=_database.impl,
+                           dbtype=_database.dbtype, dbversion=_database.dbversion)
             if not _database.is_master:
                 raise exceptions.AcceptableDbError('Database is slave, can not create schema')
             if _database.status != common.OK:
@@ -271,7 +277,8 @@ class DatabaseManagerBase(object):
         if not src_database or not dst_database:
             raise
         _result = dict(database_id=dst_database.database_id,
-                       impl=dst_database.impl, dbtype=dst_database.dbtype)
+                       impl=dst_database.impl, dbtype=dst_database.dbtype,
+                       dbversion=dst_database.dbversion)
         with session.begin():
             with self._copy_schema(session,
                                    src_database, src_schema,
@@ -309,7 +316,8 @@ class DatabaseManagerBase(object):
         with session.begin():
             _database = query.one()
             _result = dict(database_id=_database.database_id,
-                           impl=_database.impl, dbtype=_database.dbtype)
+                           impl=_database.impl, dbtype=_database.dbtype,
+                           dbversion=_database.dbversion)
             if not _database.is_master:
                 raise exceptions.AcceptableDbError('can not delete schema from slave database')
             squery = model_query(session, GopSchema, filter=and_(GopSchema.schema == schema,

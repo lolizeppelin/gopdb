@@ -2,6 +2,28 @@ import re
 
 import webob.exc
 
+from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.exc import MultipleResultsFound
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.sql import and_
+
+from simpleutil.common.exceptions import InvalidArgument
+from simpleutil.log import log as logging
+from simpleutil.utils import jsonutils
+from simpleutil.utils import singleton
+
+from simpleservice.ormdb.api import model_query
+from simpleservice.rpc.exceptions import AMQPDestinationNotFound
+from simpleservice.rpc.exceptions import MessagingTimeout
+from simpleservice.rpc.exceptions import NoSuchMethod
+
+from goperation.manager.exceptions import CacheStoneError
+from goperation.manager.utils import resultutils
+from goperation.manager.wsgi.contorller import BaseContorller
+from goperation.manager.wsgi.entity.controller import EntityReuest
+from goperation.manager.wsgi.exceptions import RpcPrepareError
+from goperation.manager.wsgi.exceptions import RpcResultError
+
 from gopdb import common
 from gopdb import utils
 from gopdb.api import endpoint_session
@@ -9,24 +31,7 @@ from gopdb.api.wsgi.impl import exceptions
 from gopdb.models import GopDatabase
 from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
-from goperation.manager.exceptions import CacheStoneError
-from goperation.manager.utils import resultutils
-from goperation.manager.wsgi.contorller import BaseContorller
-from goperation.manager.wsgi.entity.controller import EntityReuest
-from goperation.manager.wsgi.exceptions import RpcPrepareError
-from goperation.manager.wsgi.exceptions import RpcResultError
-from simpleservice.ormdb.api import model_query
-from simpleservice.rpc.exceptions import AMQPDestinationNotFound
-from simpleservice.rpc.exceptions import MessagingTimeout
-from simpleservice.rpc.exceptions import NoSuchMethod
-from simpleutil.common.exceptions import InvalidArgument
-from simpleutil.log import log as logging
-from simpleutil.utils import jsonutils
-from simpleutil.utils import singleton
-from sqlalchemy.orm import joinedload
-from sqlalchemy.orm.exc import MultipleResultsFound
-from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.sql import and_
+
 
 safe_dumps = jsonutils.safe_dumps_as_bytes
 safe_loads = jsonutils.safe_loads_as_bytes
@@ -56,18 +61,16 @@ def _impl(database_id):
         session = endpoint_session(readonly=True)
         try:
             database = model_query(session, GopDatabase, GopDatabase.database_id == database_id).one()
-            dbmanager = utils.impl_cls(database.impl)
-            MANAGERCACHE.setdefault(database_id, dbmanager)
-            return dbmanager
+            if database_id not in MANAGERCACHE:
+                dbmanager = utils.impl_cls('wsgi', database.impl)
+                MANAGERCACHE.setdefault(database_id, dbmanager)
+            return MANAGERCACHE[database_id]
         finally:
             session.close()
 
 
 @singleton.singleton
 class DatabaseReuest(BaseContorller):
-
-    # TODO cache dbmanager of database_id
-
 
     def select(self, req, body=None):
         body = body or {}
@@ -92,6 +95,7 @@ class DatabaseReuest(BaseContorller):
                  GopDatabase.is_master,
                  GopDatabase.impl,
                  GopDatabase.dbtype,
+                 GopDatabase.dbversion,
                  GopDatabase.reflection_id,
                  GopDatabase.status,
                  GopDatabase.desc]
@@ -124,13 +128,14 @@ class DatabaseReuest(BaseContorller):
             dbtype = body.pop('dbtype')
             user = body.pop('user')
             passwd = body.pop('passwd')
+            dbversion = body.pop('dbversion', None)
         except KeyError as e:
             raise InvalidArgument('miss key: %s' % e.message)
         affinity = body.pop('affinity', 0)
         kwargs = dict(req=req)
         kwargs.update(body)
-        dbmanager = utils.impl_cls(impl)
-        dbresult = dbmanager.create_database(user, passwd, dbtype, affinity, **kwargs)
+        dbmanager = utils.impl_cls('wsgi', impl)
+        dbresult = dbmanager.create_database(user, passwd, dbtype, dbversion, affinity, **kwargs)
         return resultutils.results(result='create database success', data=[dbresult, ])
 
     def show(self, req, database_id, body=None):
@@ -146,7 +151,10 @@ class DatabaseReuest(BaseContorller):
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
         with session.begin():
-            count = query.update({'status': body.get('status', common.UNACTIVE)})
+            updata = {'status': body.get('status', common.UNACTIVE)}
+            if body.get('dbversion'):
+                updata.setdefault('dbversion', body.get('dbversion'))
+            count = query.update(updata)
         return resultutils.results(result='Update %s database success' % database_id)
 
     def delete(self, req, database_id, body=None):
@@ -356,5 +364,7 @@ class SchemaReuest(BaseContorller):
             database = schema_quote.database
             data.setdefault('database', dict(impl=database.impl,
                                              reflection_id=database.reflection_id,
-                                             is_master=database.is_master))
+                                             is_master=database.is_master,
+                                             dbtype=database.dbtype,
+                                             dbversion=database.dbversion))
         return resultutils.results(result='get quote success', data=[data, ])

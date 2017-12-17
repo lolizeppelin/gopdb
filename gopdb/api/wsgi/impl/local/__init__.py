@@ -16,7 +16,7 @@ from gopdb.api.wsgi.impl import privilegeutils
 entity_controller = EntityReuest()
 
 
-class DataBaseManager(DatabaseManagerBase):
+class DatabaseManager(DatabaseManagerBase):
 
     def _get_entity(self, req, entity):
         _entity = entity_controller.show(req=req, entity=entity,

@@ -172,7 +172,6 @@ class Application(AppEndpointBase):
                                                   resultcode=resultcode,
                                                   result='result')])
 
-
     def rpc_post_create_entity(self, ctxt, entity, **kwargs):
         database_id = kwargs.pop('database_id')
         self.konwn_database.setdefault(entity, database_id)

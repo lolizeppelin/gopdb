@@ -13,7 +13,7 @@ from simpleutil.utils import attributes
 from sqlalchemy.pool import NullPool
 
 
-class DataBaseManager(DatabaseManagerBase):
+class DatabaseManager(DatabaseManagerBase):
 
     @contextlib.contextmanager
     def _show_database(self, session, database, **kwargs):
