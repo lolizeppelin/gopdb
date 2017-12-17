@@ -73,6 +73,8 @@ class GopDatabase(TableBase):
                             autoincrement=True)
     #  local, record, cloud.aliyun, cloud.qcloud
     impl = sa.Column(VARCHAR(64), default=None, nullable=False)
+    # database type
+    dbtype = sa.Column(VARCHAR(64), default='mysql', nullable=False)
     reflection_id = sa.Column(VARCHAR(128), nullable=False)
     user = sa.Column(VARCHAR(64), default=None, nullable=False)
     # passwd none means database can not be control

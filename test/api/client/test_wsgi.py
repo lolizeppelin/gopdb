@@ -6,7 +6,7 @@ from goperation import config
 
 from goperation.api.client import ManagerClient
 
-from gopdb.api.client import GopCdnClient
+from gopdb.api.client import GopDBClient
 from gopdb import common
 
 
@@ -20,7 +20,7 @@ wsgi_port = 7999
 
 httpclient = ManagerClient(wsgi_url, wsgi_port)
 
-client = GopCdnClient(httpclient)
+client = GopDBClient(httpclient)
 
 
 def create_test():
@@ -43,4 +43,26 @@ def delete_test():
     print client.database_delete(database_id=1, body={})
 
 
-create_test()
+def schema_create_test(database_id):
+    print client.schemas_create(database_id=database_id,
+                                body={'auth': {'user': 'root', 'passwd': '1111',
+                                               'ro_user': 'selecter', 'ro_passwd': '111',
+                                               'source': '%'},
+                                      'options': {'charcter_set': 'utf8'},
+                                      'name': 'gamserver_db_3'})
+
+def schema_delete_test(database_id):
+    print client.schemas_delete(database_id=database_id, schema='gamserver_db_2')
+
+
+def schema_bond(database_id):
+    print client.schemas_bond(database_id, schema='gamserver_db_2', entity=1, endpoint='mszl',
+                              body={'esure': False})
+
+
+def quote_show(quote_id, body=None):
+    print client.quote_show(quote_id, body)
+
+# index_test()
+# schema_delete_test(3)
+quote_show(quote_id=1, body={'schema': True, 'database': True})

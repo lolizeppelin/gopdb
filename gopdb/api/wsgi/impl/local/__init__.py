@@ -1,20 +1,17 @@
 import contextlib
 from sqlalchemy.pool import NullPool
 
-from simpleservice.ormdb.api import model_query
+from simpleutil.utils import uuidutils
+from simpleservice.ormdb.argformater import connformater
+from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
 
-from simpleservice.ormdb.engines import create_engine
-from simpleservice.ormdb.argformater import connformater
+from goperation.manager.wsgi.entity.controller import EntityReuest
 
 from gopdb import common
-from gopdb.impl import DatabaseManagerBase
-from gopdb.models import RecordDatabase
-
-from gopdb.impl import privilegeutils
-from gopdb.impl import exceptions
-
-from goperation.manager.wsgi.entity.controller import EntityReuest
+from gopdb.api.wsgi.impl import DatabaseManagerBase
+from gopdb.api.wsgi.impl import exceptions
+from gopdb.api.wsgi.impl import privilegeutils
 
 entity_controller = EntityReuest()
 
@@ -40,23 +37,30 @@ class DataBaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _create_database(self, session, database, **kwargs):
         req = kwargs.pop('req')
-        agent_id = kwargs.get('agent_id')
-        desc = kwargs.get('desc')
+        agent_id = kwargs.pop('agent_id')
+        body = dict(dbtype=database.dbtype,
+                    user=database.user, passwd=database.passwd)
+        body.update(kwargs)
         entity = entity_controller.create(req=req,
                                           agent_id=agent_id,
                                           endpoint=common.DB,
-                                          body=dict(desc='database intance'))['data'][0]['entity']
+                                          body=body)['data'][0]['entity']
         database.impl = 'local'
-        database.desc = desc
         database.status = common.UNACTIVE
         database.reflection_id = str(entity)
         yield self._get_entity(req=req, entity=entity)
+
+    def _esure_create(self, database, **kwargs):
+        entity_controller.post_create_entity(entity=int(database.reflection_id),
+                                             endpoint=common.DB, database_id=database.database_id)
 
     @contextlib.contextmanager
     def _delete_database(self, session, database, **kwargs):
         req = kwargs.pop('req')
         local_ip, port = self._get_entity(req=req, entity=int(database.reflection_id))
-        entity_controller.delete(req=req, endpoint=common.DB, entity=int(database.reflection_id))
+        token = uuidutils.generate_uuid()
+        entity_controller.delete(req=req, endpoint=common.DB, entity=int(database.reflection_id),
+                                 body=dict(token=token))
         yield local_ip, port
 
     @contextlib.contextmanager

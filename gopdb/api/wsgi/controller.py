@@ -1,42 +1,32 @@
 import re
+
 import webob.exc
 
-from sqlalchemy.sql import and_
-from sqlalchemy.orm import joinedload
-from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.orm.exc import MultipleResultsFound
-
-from simpleutil.common.exceptions import InvalidArgument
-from simpleutil.log import log as logging
-from simpleutil.utils import jsonutils
-from simpleutil.utils import timeutils
-from simpleutil.utils import singleton
+from gopdb import common
+from gopdb import utils
+from gopdb.api import endpoint_session
+from gopdb.api.wsgi.impl import exceptions
+from gopdb.models import GopDatabase
+from gopdb.models import GopSchema
+from gopdb.models import SchemaQuote
+from goperation.manager.exceptions import CacheStoneError
+from goperation.manager.utils import resultutils
+from goperation.manager.wsgi.contorller import BaseContorller
+from goperation.manager.wsgi.entity.controller import EntityReuest
+from goperation.manager.wsgi.exceptions import RpcPrepareError
+from goperation.manager.wsgi.exceptions import RpcResultError
 from simpleservice.ormdb.api import model_query
 from simpleservice.rpc.exceptions import AMQPDestinationNotFound
 from simpleservice.rpc.exceptions import MessagingTimeout
 from simpleservice.rpc.exceptions import NoSuchMethod
-
-from goperation.manager.api import get_global
-from goperation.manager.utils import resultutils
-
-from goperation.manager.exceptions import CacheStoneError
-
-from goperation.manager.wsgi.contorller import BaseContorller
-from goperation.manager.wsgi.exceptions import RpcPrepareError
-from goperation.manager.wsgi.exceptions import RpcResultError
-from goperation.manager.wsgi.entity.controller import EntityReuest
-
-from gopdb import common
-from gopdb import utils
-
-from gopdb.api import endpoint_session
-
-from gopdb.models import GopDatabase
-from gopdb.models import GopSchema
-from gopdb.models import SchemaQuote
-
-from gopdb.impl import exceptions
-
+from simpleutil.common.exceptions import InvalidArgument
+from simpleutil.log import log as logging
+from simpleutil.utils import jsonutils
+from simpleutil.utils import singleton
+from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.exc import MultipleResultsFound
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.sql import and_
 
 safe_dumps = jsonutils.safe_dumps_as_bytes
 safe_loads = jsonutils.safe_loads_as_bytes
@@ -92,7 +82,7 @@ class DatabaseReuest(BaseContorller):
         slaves = body.pop('slaves', False)
         # schemas = body.pop('schemas', False)
         # quotes = body.pop('quotes', False)
-        impl = body.get('quotes', None)
+        impl = body.get('impl', None)
         session = endpoint_session(readonly=True)
         _filter = None
         if impl:
@@ -101,6 +91,7 @@ class DatabaseReuest(BaseContorller):
         columns=[GopDatabase.database_id,
                  GopDatabase.is_master,
                  GopDatabase.impl,
+                 GopDatabase.dbtype,
                  GopDatabase.reflection_id,
                  GopDatabase.status,
                  GopDatabase.desc]
@@ -130,6 +121,7 @@ class DatabaseReuest(BaseContorller):
         body = body or {}
         try:
             impl = body.pop('impl')
+            dbtype = body.pop('dbtype')
             user = body.pop('user')
             passwd = body.pop('passwd')
         except KeyError as e:
@@ -138,16 +130,15 @@ class DatabaseReuest(BaseContorller):
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = utils.impl_cls(impl)
-        dbresult = dbmanager.create_database(user, passwd, affinity, **kwargs)
+        dbresult = dbmanager.create_database(user, passwd, dbtype, affinity, **kwargs)
         return resultutils.results(result='create database success', data=[dbresult, ])
 
     def show(self, req, database_id, body=None):
         body = body or {}
-        master = body.get('master', True)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
-        dbresult = dbmanager.show_database(database_id, master, **kwargs)
+        dbresult = dbmanager.show_database(database_id, **kwargs)
         return resultutils.results(result='show database success', data=[dbresult, ])
 
     def update(self, req, database_id, body=None):

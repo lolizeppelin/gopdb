@@ -1,21 +1,16 @@
 import contextlib
-from sqlalchemy.pool import NullPool
-
-
-from simpleutil.utils import attributes
-
-from simpleservice.ormdb.api import model_query
-from simpleservice.ormdb.tools import utils
-
-from simpleservice.ormdb.engines import create_engine
-from simpleservice.ormdb.argformater import connformater
 
 from gopdb import common
-from gopdb.impl import exceptions
-from gopdb.impl import DatabaseManagerBase
+from gopdb.api.wsgi.impl import DatabaseManagerBase
+from gopdb.api.wsgi.impl import exceptions
+from gopdb.api.wsgi.impl import privilegeutils
 from gopdb.models import RecordDatabase
-
-from gopdb.impl import privilegeutils
+from simpleservice.ormdb.api import model_query
+from simpleservice.ormdb.argformater import connformater
+from simpleservice.ormdb.engines import create_engine
+from simpleservice.ormdb.tools import utils
+from simpleutil.utils import attributes
+from sqlalchemy.pool import NullPool
 
 
 class DataBaseManager(DatabaseManagerBase):

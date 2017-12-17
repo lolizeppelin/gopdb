@@ -1,0 +1,14 @@
+[DEFAULT]
+
+
+[gopdb]
+
+#
+# From gopdb
+#
+
+# Manager extend rpc endpoint module string (import string value)
+#module = gopdb.api.rpc
+
+# Endpoint max lock size (integer value)
+#max_lock = 5

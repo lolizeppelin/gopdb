@@ -7,7 +7,7 @@ from gopdb.common import DB
 from gopdb.common import ENDPOINTKEY
 
 
-class GopCdnClient(GopHttpClientApi):
+class GopDBClient(GopHttpClientApi):
 
     select_database_path = '/gopdb/select'
     databases_path = '/gopdb/databases'
@@ -22,7 +22,7 @@ class GopCdnClient(GopHttpClientApi):
 
     def __init__(self, httpclient):
         self.endpoint = DB
-        super(GopCdnClient, self).__init__(httpclient)
+        super(GopDBClient, self).__init__(httpclient)
 
     def select_database(self, body=None):
         resp, results = self.get(action=self.select_database_path, body=body)
