@@ -220,5 +220,5 @@ class DatabaseManager(DatabaseManagerBase):
         """update database config"""
         dbconfig = self.config_cls(**configs)
         dbconfig.save(cfgfile)
-        systemutils.chmod(cfgfile, 644)
+        systemutils.chmod(cfgfile, 022)
 
