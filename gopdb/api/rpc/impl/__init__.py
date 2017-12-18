@@ -38,20 +38,19 @@ class DatabaseManagerBase(object):
         """status of database intance"""
 
     @abc.abstractmethod
-    def start(self, cfgfile, postrun=None, timeout=None, **kwargs):
+    def start(self, cfgfile, postrun, timeout, **kwargs):
         """stary database intance"""
 
     @abc.abstractmethod
-    def stop(self, cfgfile, postrun=None, timeout=None, **kwargs):
+    def stop(self, cfgfile, postrun, timeout, **kwargs):
         """stop database intance"""
 
     @abc.abstractmethod
-    def install(self, cfgfile, postrun=None, auth=None, timeout=None,
-                logfile=None, **kwargs):
+    def install(self, cfgfile, postrun, timeout, **kwargs):
         """create database intance"""
 
     @abc.abstractmethod
-    def dump(self, cfgfile, postrun=None, timeout=None, **kwargs):
+    def dump(self, cfgfile, postrun, timeout, **kwargs):
         """dump database data"""
 
     @abc.abstractmethod

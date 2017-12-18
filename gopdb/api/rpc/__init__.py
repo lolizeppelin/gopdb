@@ -126,10 +126,8 @@ class Application(AppEndpointBase):
                 self._free_port(entity)
                 self.entitys_map.pop(entity)
 
-    def create_entity(self, entity, **kwargs):
+    def create_entity(self, entity, timeout, **kwargs):
         dbtype = kwargs.pop('dbtype')
-        # auth = kwargs.pop('auth')
-        timeout = kwargs.pop('timeout')
         configs = kwargs.pop('configs', {})
 
         port = configs.pop('port', None)
@@ -149,10 +147,8 @@ class Application(AppEndpointBase):
                 configs.setdefault('sockfile', sockfile)
                 configs.setdefault('logfile', logfile)
                 configs.setdefault('runuser', self.entity_user(entity))
-
-
-                # prepare database config file
                 dbmanager.save_conf(cfgfile, **configs)
+                LOG.info('Prepare database config file success')
 
                 def _notify_success():
                     self.client.ports_add(agent_id=self.manager.agent_id,
@@ -164,10 +160,10 @@ class Application(AppEndpointBase):
                         LOG.warning('Can not find entity database id, active fail')
                         return
                     self.client.database_update(database_id=database_id, body={'status': common.OK})
-
+                kwargs.update({'logfile': install_log})
                 # call database_install in green thread
-                eventlet.spawn_n(dbmanager.install, cfgfile, install_log,
-                                 postrun=_notify_success, timeout=timeout, **kwargs)
+                eventlet.spawn_n(dbmanager.install, cfgfile, _notify_success, timeout,
+                                 **kwargs)
         return port
 
     def rpc_create_entity(self, ctxt, entity, **kwargs):
@@ -180,9 +176,8 @@ class Application(AppEndpointBase):
                                                   ctxt=ctxt,
                                                   result='create %s database fail, entity exist' % entity)
             timeout = count_timeout(ctxt, kwargs)
-            kwargs.update({'timeout':  timeout})
             try:
-                port = self.create_entity(entity, **kwargs)
+                port = self.create_entity(entity, timeout, **kwargs)
                 resultcode = manager_common.RESULT_SUCCESS
                 result = 'create database success'
             except Exception as e:

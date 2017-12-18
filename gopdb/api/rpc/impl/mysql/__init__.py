@@ -30,14 +30,12 @@ else:
     BASELOG = r'C:\temp\mysqld.log'
 
 
-
 CONF = cfg.CONF
 
 LOG = logging.getLogger(__name__)
 
 
 config.register_opts(CONF.find_group(common.DB))
-
 
 
 def default_config():
@@ -135,7 +133,6 @@ class MysqlConfig(DatabaseConfigBase):
     def dump(self, cfgfile):
         """out put config"""
 
-
     def update(self, cfgfile):
         """update config"""
 
@@ -165,7 +162,7 @@ class DatabaseManager(DatabaseManagerBase):
             if ppid == 0:
                 # close all fd
                 p = psutil.Process()
-                fds = [ opf.fd for opf in p.open_files()]
+                fds = [opf.fd for opf in p.open_files()]
                 for fd in fds:
                     if fd > 2:
                         os.close(fd)
@@ -178,11 +175,11 @@ class DatabaseManager(DatabaseManagerBase):
         else:
             wait(pid)
 
-    def stop(self, cfgfile, postrun=None, timeout=None, **kwargs):
+    def stop(self, cfgfile, postrun, timeout,
+             **kwargs):
         """stop database intance"""
 
-    def install(self, cfgfile, postrun=None, auth=None, timeout=None,
-                logfile=None, **kwargs):
+    def install(self, cfgfile, postrun, timeout, **kwargs):
         """create database intance"""
         if not os.path.exists(cfgfile):
             raise
@@ -190,7 +187,7 @@ class DatabaseManager(DatabaseManagerBase):
         args = [MYSQLINSTALL, ]
         args.extend(self.base_opts)
         args.append('--defaults-file=%s' % cfgfile)
-
+        logfile = kwargs.get('logfile')
         if not systemutils.POSIX:
             # just for test on windows
             LOG.info('will call %s', ' '.join(args))
@@ -203,15 +200,15 @@ class DatabaseManager(DatabaseManagerBase):
                     os.dup2(f.fileno(), 2)
                 os.execv(MYSQLINSTALL, args)
             else:
+                LOG.info('wait %s exit' % MYSQLINSTALL)
                 wait(pid, timeout)
         self.start(cfgfile)
         if postrun:
             postrun()
 
-
-    def dump(self, cfgfile, postrun=None, timeout=None, **kwargs):
+    def dump(self, cfgfile, postrun, timeout,
+             **kwargs):
         """dump database data"""
-
 
     def load_conf(self, cfgfile, **kwargs):
         """out put database config"""
