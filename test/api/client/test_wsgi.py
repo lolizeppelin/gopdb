@@ -26,9 +26,18 @@ client = GopDBClient(httpclient)
 def create_test():
     print client.databases_create(body={'impl': 'record',
                                         'user': 'root',
+                                        'dbtype': 'mysql',
                                         'passwd': None,
                                         'host': '127.0.0.1',
-                                        'port': 3306})
+                                        'port': 3307})
+
+
+def create_local_test():
+    print client.databases_create(body={'impl': 'local',
+                                        'agent_id': 1,
+                                        'dbtype': 'mysql',
+                                        'user': 'root',
+                                        'passwd': 111111})
 
 def index_test():
     print client.databases_index(body={})
@@ -65,4 +74,5 @@ def quote_show(quote_id, body=None):
 
 # index_test()
 # schema_delete_test(3)
-quote_show(quote_id=1, body={'schema': True, 'database': True})
+# quote_show(quote_id=1, body={'schema': True, 'database': True})
+create_local_test()

@@ -95,11 +95,12 @@ class Application(AppEndpointBase):
         return 'gopdb'
 
     def _db_conf(self, entity, dbtype):
-        return os.path.join(self.entity_home(entity), '%.conf' % dbtype)
+        return os.path.join(self.entity_home(entity), '%s.conf' % dbtype)
 
     @contextlib.contextmanager
     def _allocate_port(self, entity, port):
-        yield self.manager.frozen_port(self, common.DB, entity, ports=[port, ])[0]
+        with self.manager.frozen_ports(common.DB, entity, ports=[port, ]) as ports:
+            yield list(ports)
 
     def _free_port(self, entity):
         ports = self.manager.allocked_ports.get(common.DB)[entity]
@@ -127,46 +128,50 @@ class Application(AppEndpointBase):
 
     def create_entity(self, entity, **kwargs):
         dbtype = kwargs.pop('dbtype')
-        auth = kwargs.pop('auth')
+        # auth = kwargs.pop('auth')
         timeout = kwargs.pop('timeout')
         configs = kwargs.pop('configs', {})
 
         port = configs.pop('port', None)
         pidfile = os.path.join(self.entity_home(entity), '%s.pid' % dbtype)
         sockfile = os.path.join(self.entity_home(entity), '%s.sock' % dbtype)
+        logfile = os.path.join(self.logpath(entity), '%s.log' % dbtype)
+        install_log = os.path.join(self.logpath(entity), 'install.log')
         cfgfile = self._db_conf(entity, dbtype)
-
+        LOG.info('Load database manager for %s' % dbtype)
         dbmanager = utils.impl_cls('rpc', dbtype)
 
-        def _notify_success():
-            try:
-                database_id = self.konwn_database.pop(entity)
-            except KeyError:
-                LOG.warring('Can not find entity database id, active fail')
-                return
-            self.client.database_update(database_id=database_id, body={'status': common.OK})
-
         with self._prepare_entity_path(entity, apppath=False):
-            with self._allocate_port(entity, port) as port:
-                configs.setdefault('port', port)
+            with self._allocate_port(entity, port) as ports:
+                configs.setdefault('port', ports[0])
                 configs.setdefault('datadir', self.apppath(entity))
                 configs.setdefault('pidfile', pidfile)
                 configs.setdefault('sockfile', sockfile)
-                configs.setdefault('logfile', self.logpath(entity))
+                configs.setdefault('logfile', logfile)
                 configs.setdefault('runuser', self.entity_user(entity))
-                configs.setdefault('auth', auth)
-                try:
-                    # prepare database config file
-                    dbmanager.save_conf(cfgfile, **configs)
-                    # call database_install in green thread
-                    eventlet.spawn_n(dbmanager.install, cfgfile, postrun=_notify_success, timeout=timeout)
-                except:
-                    self._free_port(entity)
-                    raise
+
+
+                # prepare database config file
+                dbmanager.save_conf(cfgfile, **configs)
+
+                def _notify_success():
+                    self.client.ports_add(agent_id=self.manager.agent_id,
+                                          endpoint=common.DB, entity=entity, ports=ports)
+                    eventlet.sleep(1)
+                    try:
+                        database_id = self.konwn_database.pop(entity)
+                    except KeyError:
+                        LOG.warning('Can not find entity database id, active fail')
+                        return
+                    self.client.database_update(database_id=database_id, body={'status': common.OK})
+
+                # call database_install in green thread
+                eventlet.spawn_n(dbmanager.install, cfgfile, install_log,
+                                 postrun=_notify_success, timeout=timeout, **kwargs)
         return port
 
     def rpc_create_entity(self, ctxt, entity, **kwargs):
-        jsonutils.schema_validate(kwargs, CREATESCHEMA)
+        # jsonutils.schema_validate(kwargs, CREATESCHEMA)
         entity = int(entity)
         with self.lock(entity, timeout=3):
             if entity in self.entitys:

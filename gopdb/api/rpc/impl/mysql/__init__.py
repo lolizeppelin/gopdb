@@ -2,6 +2,8 @@ import six
 import os
 import ConfigParser
 
+import psutil
+
 from simpleutil.log import log as logging
 from simpleutil.config import cfg
 from simpleutil.utils import systemutils
@@ -17,8 +19,16 @@ from goperation.utils import safe_fork
 
 if systemutils.POSIX:
     from simpleutil.utils.systemutils.posix import wait
+    MYSQLSAFE = systemutils.find_executable('mysqld_safe')
+    MYSQLINSTALL = systemutils.find_executable('mysql_install_db')
+    BASELOG = '/var/log/mysqld.log'
 else:
+    # just for windows test
     from simpleutil.utils.systemutils import empty as wait
+    MYSQLSAFE = r'C:\Program Files\mysql\bin\mysqld_safe'
+    MYSQLINSTALL = r'C:\Program Files\mysql\bin\mysql_install_db'
+    BASELOG = r'C:\temp\mysqld.log'
+
 
 
 CONF = cfg.CONF
@@ -29,28 +39,28 @@ LOG = logging.getLogger(__name__)
 config.register_opts(CONF.find_group(common.DB))
 
 
-MYSQLSAFE = systemutils.find_executable('mysqld_safe')
-
 
 def default_config():
     cf = ConfigParser.ConfigParser()
 
     cf.add_section('mysqld_safe')
-    cf.set('mysqld_safe', 'log-error', '/var/log/mysqld.log')
-
     cf.add_section('mysqld')
+
+    # mysqld_safe opts
+    cf.set('mysqld_safe', 'log-error', '/var/log/mysqld.log')
     # base options
+
     cf.set('mysqld', 'server-id', 1)
+    cf.set('mysqld', 'symbolic-links', 0)
+    cf.set('mysqld', 'character-set-server', 'utf8')
     cf.set('mysqld', 'user', 'mysql')
     cf.set('mysqld', 'pid-file', '/var/run/mysqld/mysqld.pid')
     cf.set('mysqld', 'log-error', '/var/log/mysqld.log')
     cf.set('mysqld', 'datadir', '/data/mysql/mysqld')
-    cf.set('mysqld', 'character-set-server', 'utf8')
-    cf.set('mysqld', 'symbolic-links', 0)
 
     # network config
-    cf.set('mysqld', 'port', 3306)
     cf.set('mysqld', 'socket', '/var/lib/mysql/mysql.sock')
+    cf.set('mysqld', 'port', 3306)
     cf.set('mysqld', 'max_connect_errors', 64)
     cf.set('mysqld', 'back_log', 1024)
     cf.set('mysqld', 'max_connections', 512)
@@ -80,7 +90,7 @@ def default_config():
     cf.set('mysqld', 'key_buffer_size', 134217728)
     cf.set('mysqld', 'read_buffer_size', 4194304)
     cf.set('mysqld', 'read_rnd_buffer_size', 6291456)
-
+    return cf
 
 
 class MysqlConfig(DatabaseConfigBase):
@@ -91,6 +101,7 @@ class MysqlConfig(DatabaseConfigBase):
         runuser = kwargs.pop('runuser')
         pidfile = kwargs.pop('pidfile')
         sockfile = kwargs.pop('sockfile')
+        logfile = kwargs.pop('logfile')
         # binlog on/off
         binlog = (kwargs.pop('binlog', None) or kwargs.pop('log-bin', None))
         # init mysql default config
@@ -101,8 +112,10 @@ class MysqlConfig(DatabaseConfigBase):
         # set default opts
         self.config.set('mysqld', 'datadir', datadir)
         self.config.set('mysqld', 'pid-file', pidfile)
-        self.config.set('mysqld', 'socket', sockfile)
+        self.config.set('mysqld', 'log-error', logfile)
         self.config.set('mysqld', 'user', runuser)
+        # set default socket opts
+        self.config.set('mysqld', 'socket', sockfile)
         # ste logbin
         if binlog:
             conf = CONF[common.DB]
@@ -116,9 +129,12 @@ class MysqlConfig(DatabaseConfigBase):
 
     def save(self, cfgfile):
         """save config"""
+        with open(cfgfile, 'wb') as f:
+            self.config.write(f)
 
     def dump(self, cfgfile):
         """out put config"""
+
 
     def update(self, cfgfile):
         """update config"""
@@ -128,23 +144,34 @@ class DatabaseManager(DatabaseManagerBase):
 
     config_cls = MysqlConfig
 
-    cmd_opts = ['--skip-name-resolve']
-
+    base_opts = ['--skip-name-resolve']
 
     def status(self, cfgfile, **kwargs):
         """status of database intance"""
 
     def start(self, cfgfile, postrun=None, timeout=None, **kwargs):
         """stary database intance"""
-        args = [MYSQLSAFE, '--skip-name-resolve', '--defaults-file=%s' % cfgfile]
+        args = [MYSQLSAFE, ]
+        args.extend(self.base_opts)
+        args.append('--defaults-file=%s' % cfgfile)
         if not systemutils.POSIX:
             # just for test on windows
             LOG.info('will call %s', ' '.join(args))
             return
         pid = safe_fork()
         if pid == 0:
+            # fork twice
             ppid = os.fork()
             if ppid == 0:
+                # close all fd
+                p = psutil.Process()
+                fds = [ opf.fd for opf in p.open_files()]
+                for fd in fds:
+                    if fd > 2:
+                        os.close(fd)
+                with open(BASELOG, 'ab') as f:
+                    os.dup2(f.fileno(), 1)
+                    os.dup2(f.fileno(), 2)
                 os.execv(MYSQLSAFE, args)
             else:
                 os._exit(0)
@@ -154,13 +181,29 @@ class DatabaseManager(DatabaseManagerBase):
     def stop(self, cfgfile, postrun=None, timeout=None, **kwargs):
         """stop database intance"""
 
-    def install(self, cfgfile, postrun=None, auth=None, timeout=None, **configs):
+    def install(self, cfgfile, postrun=None, auth=None, timeout=None,
+                logfile=None, **kwargs):
         """create database intance"""
-        if os.path.exists(cfgfile):
+        if not os.path.exists(cfgfile):
             raise
-        dbconfig = self.config_cls(**configs)
-        with open(cfgfile, 'wb') as f:
-            dbconfig.write(f)
+        self.start(cfgfile)
+        args = [MYSQLINSTALL, ]
+        args.extend(self.base_opts)
+        args.append('--defaults-file=%s' % cfgfile)
+
+        if not systemutils.POSIX:
+            # just for test on windows
+            LOG.info('will call %s', ' '.join(args))
+        else:
+            pid = safe_fork()
+            if pid == 0:
+                logfile = logfile or os.devnull
+                with open(logfile, 'wb') as f:
+                    os.dup2(f.fileno(), 1)
+                    os.dup2(f.fileno(), 2)
+                os.execv(MYSQLINSTALL, args)
+            else:
+                wait(pid, timeout)
         self.start(cfgfile)
         if postrun:
             postrun()
@@ -173,5 +216,7 @@ class DatabaseManager(DatabaseManagerBase):
     def load_conf(self, cfgfile, **kwargs):
         """out put database config"""
 
-    def save_conf(self, cfgfile, **kwargs):
+    def save_conf(self, cfgfile, **configs):
         """update database config"""
+        dbconfig = self.config_cls(**configs)
+        dbconfig.save(cfgfile)

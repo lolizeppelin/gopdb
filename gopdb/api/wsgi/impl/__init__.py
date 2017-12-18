@@ -70,7 +70,7 @@ class DatabaseManagerBase(object):
         with session.begin():
             _database = GopDatabase(user=user, passwd=passwd, is_master=True,
                                     dbtype=dbtype, dbversion=dbversion, affinity=affinity,
-                                    desc=kwargs.pop('desc'))
+                                    desc=kwargs.pop('desc', None))
             _result = dict(dbversion=_database.dbversion,
                            dbtype=_database.dbtype)
             with self._create_database(session, _database, **kwargs) as address:

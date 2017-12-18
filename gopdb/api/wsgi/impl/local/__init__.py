@@ -26,7 +26,7 @@ class DatabaseManager(DatabaseManagerBase):
         agent_attributes = entity_controller.agent_attributes(agent_id)
         if not agent_attributes:
             raise exceptions.AcceptableDbError('Agent %d not online or not exist' % agent_id)
-        yield agent_attributes.get('local_ip'), port
+        return agent_attributes.get('local_ip'), port
 
     @contextlib.contextmanager
     def _show_database(self, session, database, **kwargs):

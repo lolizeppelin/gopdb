@@ -46,7 +46,8 @@ class DatabaseManagerBase(object):
         """stop database intance"""
 
     @abc.abstractmethod
-    def install(self, cfgfile, postrun=None, auth=None, timeout=None, **kwargs):
+    def install(self, cfgfile, postrun=None, auth=None, timeout=None,
+                logfile=None, **kwargs):
         """create database intance"""
 
     @abc.abstractmethod
