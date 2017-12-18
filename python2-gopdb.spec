@@ -24,7 +24,7 @@ Requires:       python-goperation >= 1.0
 Requires:       python-goperation < 1.1
 
 %description
-utils for update cdn resource
+utils for update database resource
 
 %prep
 %setup -q -n %{proj_name}-%{version}
@@ -57,15 +57,14 @@ install -p -D -m 0754 bin/* %{buildroot}%{_sbindir}
 %{python_sitelib}/%{proj_name}/api/*.pyo
 %{python_sitelib}/%{proj_name}/api/client
 %{python_sitelib}/%{proj_name}/cmd
-%{python_sitelib}/%{proj_name}/notify
 %{python_sitelib}/%{proj_name}-%{version}-py?.?.egg-info
-%{_sbindir}/gopcdn-db-init
+%{_sbindir}/%{proj_name}-db-init
 %doc README.md
 %doc doc/*
 
 
 %package server
-Summary:        Goperation cdn wsgi routes
+Summary:        Goperation database wsgi routes
 Group:          Development/Libraries
 Requires:       %{name} == %{version}
 Requires:       python-goperation-server >= 1.0
@@ -73,33 +72,31 @@ Requires:       python-goperation-server < 1.1
 
 
 %description server
-Goperation cdn wsgi routes
+Goperation database wsgi routes
 
 %files server
 %defattr(-,root,root,-)
 %dir %{python_sitelib}/%{proj_name}/api/wsgi
 %{python_sitelib}/%{proj_name}/api/wsgi/*
-%{_sysconfdir}/goperation/endpoints/gopcdn.server.conf.sample
+%{_sysconfdir}/goperation/endpoints/gopdb.server.conf.sample
 
 
 %package agent
-Summary:        Goperation cdn rpc agent
+Summary:        Goperation database rpc agent
 Group:          Development/Libraries
 Requires:       %{name} == %{version}
 Requires:       python-goperation-application >= 1.0
 Requires:       python-goperation-application < 1.1
-Requires:       python-nginx >= 1.2
-Requires:       subversion >= 1.7
+Requires:       mysql >= 5.1.7
 
 %description agent
-Goperation cdn rpc agent
+Goperation database rpc agent
 
 %files agent
 %defattr(-,root,root,-)
-%{python_sitelib}/%{proj_name}/api/rpc
-%{python_sitelib}/%{proj_name}/checkout
-%{python_sitelib}/%{proj_name}/deploy
-%{_sysconfdir}/goperation/endpoints/gopcdn.agent.conf.sample
+%dir %{python_sitelib}/%{proj_name}/api/rpc
+%{python_sitelib}/%{proj_name}/api/rpc/*
+%{_sysconfdir}/goperation/endpoints/gopdb.agent.conf.sample
 
 
 %changelog

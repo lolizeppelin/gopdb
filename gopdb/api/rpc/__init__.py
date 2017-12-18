@@ -41,7 +41,7 @@ CREATESCHEMA = {
     'required': [common.ENDPOINTKEY, 'uri', 'dbtype'],
     'properties':
         {
-            common.ENDPOINTKEY:  {'type': 'string', 'description': 'endpoint name of cdn resource'},
+            common.ENDPOINTKEY:  {'type': 'string', 'description': 'endpoint name of database resource'},
             'dbtype': {'type': 'string', 'description': 'database type mysql only now'},
             'uri': {'type': 'string', 'description': 'impl checkout uri'},
             'version': {'type': 'string'},

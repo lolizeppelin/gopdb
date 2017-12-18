@@ -17,7 +17,7 @@ LOG = logging.getLogger(__name__)
 def init_endpoint_session():
     global DbDriver
     if DbDriver is None:
-        with lock.get('mysql-gopcdn'):
+        with lock.get('mysql-gopdb'):
             if DbDriver is None:
                 LOG.info("Try connect database for gopdb")
                 mysql_driver = MysqlDriver(common.DB,
