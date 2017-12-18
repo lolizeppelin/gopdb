@@ -87,7 +87,7 @@ Group:          Development/Libraries
 Requires:       %{name} == %{version}
 Requires:       python-goperation-application >= 1.0
 Requires:       python-goperation-application < 1.1
-Requires:       mysql >= 5.1.7
+Requires:       mysql-server >= 5.1.7
 
 %description agent
 Goperation database rpc agent
