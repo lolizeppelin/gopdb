@@ -14,8 +14,8 @@ a = 'C:\\Users\\loliz_000\\Desktop\\etc\\goperation\\goperation.conf'
 b = 'C:\\Users\\loliz_000\\Desktop\\etc\\goperation\\gcenter.conf'
 config.configure('test', [a, b])
 
-wsgi_url = '127.0.0.1'
-# wsgi_url = '172.31.0.110'
+# wsgi_url = '127.0.0.1'
+wsgi_url = '172.31.0.110'
 wsgi_port = 7999
 
 httpclient = ManagerClient(wsgi_url, wsgi_port)

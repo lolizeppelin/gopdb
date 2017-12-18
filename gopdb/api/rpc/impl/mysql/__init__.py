@@ -111,6 +111,7 @@ class MysqlConfig(DatabaseConfigBase):
         self.config.set('mysqld', 'datadir', datadir)
         self.config.set('mysqld', 'pid-file', pidfile)
         self.config.set('mysqld', 'log-error', logfile)
+        self.config.set('mysqld_safe', 'log-error', logfile)
         self.config.set('mysqld', 'user', runuser)
         # set default socket opts
         self.config.set('mysqld', 'socket', sockfile)
@@ -148,9 +149,8 @@ class DatabaseManager(DatabaseManagerBase):
 
     def start(self, cfgfile, postrun=None, timeout=None, **kwargs):
         """stary database intance"""
-        args = [MYSQLSAFE, ]
+        args = [MYSQLSAFE, '--defaults-file=%s' % cfgfile]
         args.extend(self.base_opts)
-        args.append('--defaults-file=%s' % cfgfile)
         if not systemutils.POSIX:
             # just for test on windows
             LOG.info('will call %s', ' '.join(args))
@@ -184,9 +184,8 @@ class DatabaseManager(DatabaseManagerBase):
         if not os.path.exists(cfgfile):
             raise
         self.start(cfgfile)
-        args = [MYSQLINSTALL, ]
+        args = [MYSQLINSTALL, '--defaults-file=%s' % cfgfile]
         args.extend(self.base_opts)
-        args.append('--defaults-file=%s' % cfgfile)
         logfile = kwargs.get('logfile')
         if not systemutils.POSIX:
             # just for test on windows
@@ -200,8 +199,12 @@ class DatabaseManager(DatabaseManagerBase):
                     os.dup2(f.fileno(), 2)
                 os.execv(MYSQLINSTALL, args)
             else:
-                LOG.info('wait %s exit' % MYSQLINSTALL)
-                wait(pid, timeout)
+                try:
+                    wait(pid, timeout)
+                except:
+                    raise
+                finally:
+                    LOG.info('%s has been exit' % MYSQLINSTALL)
         self.start(cfgfile)
         if postrun:
             postrun()
@@ -217,3 +220,5 @@ class DatabaseManager(DatabaseManagerBase):
         """update database config"""
         dbconfig = self.config_cls(**configs)
         dbconfig.save(cfgfile)
+        systemutils.chmod(cfgfile, 644)
+
