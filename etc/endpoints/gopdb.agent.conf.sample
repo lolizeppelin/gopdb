@@ -12,3 +12,14 @@
 
 # Endpoint max lock size (integer value)
 #max_lock = 5
+
+# local database login admin name (string value)
+#localroot = root
+
+# local database admin password (string value)
+#localpass = gopdb
+
+# mysql bin log expire days (integer value)
+# Minimum value: 1
+# Maximum value: 14
+#expire_log_days = 3
