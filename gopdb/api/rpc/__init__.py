@@ -1,6 +1,7 @@
 import os
 import time
 import shutil
+import contextlib
 import inspect
 import eventlet
 
@@ -96,12 +97,9 @@ class Application(AppEndpointBase):
     def _db_conf(self, entity, dbtype):
         return os.path.join(self.entity_home(entity), '%.conf' % dbtype)
 
-    def _state_path(self, entity):
-        return os.path.join(self.endpoint_home, 'run')
-
-    def _allocate_port(self, entity):
-        port = self.manager.frozen_port(self, common.DB, entity, ports=[None, ])
-        return port
+    @contextlib.contextmanager
+    def _allocate_port(self, entity, port):
+        yield self.manager.frozen_port(self, common.DB, entity, ports=[port, ])[0]
 
     def _free_port(self, entity):
         ports = self.manager.allocked_ports.get(common.DB)[entity]
@@ -129,30 +127,42 @@ class Application(AppEndpointBase):
 
     def create_entity(self, entity, **kwargs):
         dbtype = kwargs.pop('dbtype')
+        auth = kwargs.pop('auth')
+        timeout = kwargs.pop('timeout')
+        configs = kwargs.pop('configs', {})
+
+        port = configs.pop('port', None)
+        pidfile = os.path.join(self.entity_home(entity), '%s.pid' % dbtype)
+        sockfile = os.path.join(self.entity_home(entity), '%s.sock' % dbtype)
+        cfgfile = self._db_conf(entity, dbtype)
+
         dbmanager = utils.impl_cls('rpc', dbtype)
 
-        configfile = self._db_conf(entity, dbtype)
+        def _notify_success():
+            try:
+                database_id = self.konwn_database.pop(entity)
+            except KeyError:
+                LOG.warring('Can not find entity database id, active fail')
+                return
+            self.client.database_update(database_id=database_id, body={'status': common.OK})
+
         with self._prepare_entity_path(entity, apppath=False):
-            dbconfig = dbmanager.prepare_conf(**kwargs)
-            dbconfig.port = self._allocate_port(entity)
-            dbconfig.dump(configfile)
-            # build config
-            # get port
-            # replace post
-            # call database_install in green thread
-            def _notify_success():
+            with self._allocate_port(entity, port) as port:
+                configs.setdefault('port', port)
+                configs.setdefault('datadir', self.apppath(entity))
+                configs.setdefault('pidfile', pidfile)
+                configs.setdefault('sockfile', sockfile)
+                configs.setdefault('logfile', self.logpath(entity))
+                configs.setdefault('runuser', self.entity_user(entity))
+                configs.setdefault('auth', auth)
                 try:
-                    database_id = self.konwn_database.pop(entity)
-                except KeyError:
-                    LOG.warring('Can not find entity database id, active fail')
-                    return
-                self.client.database_update(database_id=database_id, body={'status': common.OK})
-
-            port = self._allocate_port(entity)
-
-
-        # eventlet.spawn_after(3, _notify_success)
-
+                    # prepare database config file
+                    dbmanager.save_conf(cfgfile, **configs)
+                    # call database_install in green thread
+                    eventlet.spawn_n(dbmanager.install, cfgfile, postrun=_notify_success, timeout=timeout)
+                except:
+                    self._free_port(entity)
+                    raise
         return port
 
     def rpc_create_entity(self, ctxt, entity, **kwargs):
@@ -161,9 +171,9 @@ class Application(AppEndpointBase):
         with self.lock(entity, timeout=3):
             if entity in self.entitys:
                 return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
-                                                 resultcode=manager_common.RESULT_ERROR,
-                                                 ctxt=ctxt,
-                                                 result='create %s database fail, entity exist' % entity)
+                                                  resultcode=manager_common.RESULT_ERROR,
+                                                  ctxt=ctxt,
+                                                  result='create %s database fail, entity exist' % entity)
             timeout = count_timeout(ctxt, kwargs)
             kwargs.update({'timeout':  timeout})
             try:
@@ -175,12 +185,12 @@ class Application(AppEndpointBase):
                 result = 'create database fail with %s' % e.__class__.__name__
 
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
-                                         ctxt=ctxt,
-                                         resultcode=resultcode,
-                                         result=result,
-                                         details=[dict(detail_id=entity,
-                                                  resultcode=resultcode,
-                                                  result='result')])
+                                          ctxt=ctxt,
+                                          resultcode=resultcode,
+                                          result=result,
+                                          details=[dict(detail_id=entity,
+                                                   resultcode=resultcode,
+                                                   result='result')])
 
     def rpc_post_create_entity(self, ctxt, entity, **kwargs):
         database_id = kwargs.pop('database_id')

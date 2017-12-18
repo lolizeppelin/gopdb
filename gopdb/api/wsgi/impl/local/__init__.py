@@ -39,7 +39,7 @@ class DatabaseManager(DatabaseManagerBase):
         req = kwargs.pop('req')
         agent_id = kwargs.pop('agent_id')
         body = dict(dbtype=database.dbtype,
-                    user=database.user, passwd=database.passwd)
+                    auth=dict(user=database.user, passwd=database.passwd))
         body.update(kwargs)
         entity = entity_controller.create(req=req,
                                           agent_id=agent_id,
