@@ -9,6 +9,9 @@ from simpleutil.log import log as logging
 from simpleutil.config import cfg
 from simpleutil.utils import systemutils
 
+from simpleservice.ormdb import engines
+from sqlalchemy.pool import NullPool
+
 import goperation
 
 from gopdb import common
@@ -102,6 +105,9 @@ class MysqlConfig(DatabaseConfigBase):
         if not isinstance(config, ConfigParser.ConfigParser):
             raise TypeError('mysql config not ConfigParser')
         self.config = config
+
+    def get(self, key):
+        return self.config.get('mysql', key)
 
     @classmethod
     def load(cls, cfgfile):
@@ -230,6 +236,7 @@ class DatabaseManager(DatabaseManagerBase):
                         LOG.info('%s has been exit' % MYSQLINSTALL)
         eventlet.sleep(0)
         self.start(cfgfile)
+        self._init_passwd(cfgfile, kwargs.get('auth'))
         if postrun:
             postrun()
 
@@ -246,3 +253,24 @@ class DatabaseManager(DatabaseManagerBase):
         dbconfig.save(cfgfile)
         systemutils.chmod(cfgfile, 022)
 
+    def _init_passwd(self, cfgfile, auth):
+        """init password for database"""
+        conf = CONF[common.DB]
+        config = self.config_cls.load(cfgfile)
+        sockfile = config.get('socket')
+        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s&autocommit=True' % ('root', '', sockfile)
+        engine = engines.create_engine(sql_connection=conn,
+                                       poolclass=NullPool)
+        _auth = dict(user=auth.get('user'), passwd=auth.get('passwd'),
+                     privileges=common.ALLPRIVILEGES, source=auth.get('source') or '%')
+        sqls = ["drop database test",
+                "truncate table db",
+                "delete from user where host != 'localhost' or user != 'root'",
+                "update user set user='%s', password=password('%s') where user='root'" % (conf.localroot,
+                                                                                          conf.localpass),
+                "grant %s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'" % _auth ,
+                "FLUSH PRIVILEGES"]
+        with engine.connect() as conn:
+            for sql in sqls:
+                conn.execute(sql)
+                conn.fetchall()
