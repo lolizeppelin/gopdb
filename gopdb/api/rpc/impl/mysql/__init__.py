@@ -236,6 +236,7 @@ class DatabaseManager(DatabaseManagerBase):
                         LOG.info('%s has been exit' % MYSQLINSTALL)
         eventlet.sleep(0)
         self.start(cfgfile)
+        eventlet.sleep(3)
         self._init_passwd(cfgfile, kwargs.get('auth'))
         if postrun:
             postrun()
