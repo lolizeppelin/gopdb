@@ -107,7 +107,7 @@ class MysqlConfig(DatabaseConfigBase):
         self.config = config
 
     def get(self, key):
-        return self.config.get('mysql', key)
+        return self.config.get('mysqld', key)
 
     @classmethod
     def load(cls, cfgfile):
@@ -119,6 +119,7 @@ class MysqlConfig(DatabaseConfigBase):
     @classmethod
     def loads(cls, **kwargs):
         """load config from kwargs"""
+        mysql_id = kwargs.pop('entity')
         datadir = kwargs.pop('datadir')
         runuser = kwargs.pop('runuser')
         pidfile = kwargs.pop('pidfile')
@@ -134,6 +135,7 @@ class MysqlConfig(DatabaseConfigBase):
         for k, v in six.iteritems(kwargs):
             config.set('mysqld', k, v)
         # set default opts
+        config.set('mysqld', 'server-id', mysql_id)
         config.set('mysqld', 'datadir', datadir)
         config.set('mysqld', 'pid-file', pidfile)
         config.set('mysqld', 'log-error', logfile)
@@ -189,12 +191,7 @@ class DatabaseManager(DatabaseManagerBase):
             # fork twice
             ppid = os.fork()
             if ppid == 0:
-                # close all fd
-                p = psutil.Process()
-                fds = [opf.fd for opf in p.open_files()]
-                for fd in fds:
-                    if fd > 2:
-                        os.close(fd)
+                os.closerange(3, systemutils.MAXFD)
                 with open(BASELOG, 'ab') as f:
                     os.dup2(f.fileno(), 1)
                     os.dup2(f.fileno(), 2)
@@ -222,6 +219,7 @@ class DatabaseManager(DatabaseManagerBase):
             with goperation.tlock('gopdb-install', 30):
                 pid = safe_fork()
                 if pid == 0:
+                    os.closerange(3, systemutils.MAXFD)
                     logfile = logfile or os.devnull
                     with open(logfile, 'wb') as f:
                         os.dup2(f.fileno(), 1)
@@ -259,7 +257,8 @@ class DatabaseManager(DatabaseManagerBase):
         conf = CONF[common.DB]
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
-        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s&autocommit=True' % ('root', '', sockfile)
+        LOG.info('Try init password for mysql %s' % sockfile)
+        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % ('root', '', sockfile)
         engine = engines.create_engine(sql_connection=conn,
                                        poolclass=NullPool)
         _auth = dict(user=auth.get('user'), passwd=auth.get('passwd'),
@@ -269,9 +268,11 @@ class DatabaseManager(DatabaseManagerBase):
                 "delete from user where host != 'localhost' or user != 'root'",
                 "update user set user='%s', password=password('%s') where user='root'" % (conf.localroot,
                                                                                           conf.localpass),
-                "grant %s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'" % _auth ,
+                "grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'" % _auth ,
                 "FLUSH PRIVILEGES"]
         with engine.connect() as conn:
+            LOG.info('Login mysql from unix sock success, try init privileges')
             for sql in sqls:
-                conn.execute(sql)
-                conn.fetchall()
+                LOG.debug(sql)
+                r = conn.execute(sql)
+                r.fetchall()

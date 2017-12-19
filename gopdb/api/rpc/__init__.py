@@ -96,10 +96,12 @@ class Application(AppEndpointBase):
         return 'gopdb'
 
     def post_start(self):
+        super(Application, self).post_start()
         pids = utils.find_process()
         for entity in self.entitys:
             _pid = self._find_from_pids(entity, pids)
             if _pid:
+                LOG.info('Database entity %d is running at %d' % (entity, _pid))
                 self.konwn_database[entity] = _pid
 
     def _esure(self, entity, username, cmdline):
@@ -107,8 +109,11 @@ class Application(AppEndpointBase):
         runuser = False
         if username == self.entity_user(entity):
             runuser = True
-        if re.search('%s' % self.apppath(entity), cmdline):
-            datadir = True
+        pattern = re.compile('%s' % self.apppath(entity))
+        for cmd in cmdline:
+            if re.search(pattern, cmd):
+                datadir = True
+                break
         if datadir and runuser:
             return True
         if datadir and not runuser:
@@ -190,6 +195,7 @@ class Application(AppEndpointBase):
 
         with self._prepare_entity_path(entity, apppath=False):
             with self._allocate_port(entity, port) as ports:
+                configs.setdefault('entity', entity)
                 configs.setdefault('port', ports[0])
                 configs.setdefault('datadir', self.apppath(entity))
                 configs.setdefault('pidfile', pidfile)
