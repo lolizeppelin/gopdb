@@ -18,7 +18,7 @@ config.configure('test', [a, b])
 wsgi_url = '172.31.0.110'
 wsgi_port = 7999
 
-httpclient = ManagerClient(wsgi_url, wsgi_port)
+httpclient = ManagerClient(wsgi_url, wsgi_port, timeout=30)
 
 client = GopDBClient(httpclient)
 

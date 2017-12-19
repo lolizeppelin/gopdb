@@ -6,8 +6,17 @@ import goperation
 
 IMPLMAP = {}
 
-EXECUTABLEMAPS = {'mysql': systemutils.find_executable('mysqld'),
-                  'redis': systemutils.find_executable('redis-server')}
+EXECUTABLEMAPS = {}
+
+try:
+    EXECUTABLEMAPS.setdefault('mysql', systemutils.find_executable('mysqld'))
+except NotImplementedError:
+    pass
+
+try:
+    EXECUTABLEMAPS.setdefault('redis', systemutils.find_executable('redis-server'))
+except NotImplementedError:
+    pass
 
 
 def impl_cls(api, impl):
@@ -26,12 +35,12 @@ def find_process(impl=None):
         EXECUTABLES = [EXECUTABLEMAPS[impl], ]
     else:
         EXECUTABLES = EXECUTABLEMAPS.values()
-    pids = set()
+    pids = []
     for proc in psutil.process_iter(attrs=['pid', 'exe', 'cmdline', 'username']):
         info = proc.info
         if info.get('exe') in EXECUTABLES:
-            pids.add(dict(pid=info.get('pid'),
-                          exe=info.get('exe'),
-                          cmdline=[cmd for cmd in info.get('cmdline')],
-                          username=info.get('username')))
+            pids.append(dict(pid=info.get('pid'),
+                             exe=info.get('exe'),
+                             cmdline=[cmd for cmd in info.get('cmdline')],
+                             username=info.get('username')))
     return pids
