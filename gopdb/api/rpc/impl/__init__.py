@@ -18,6 +18,10 @@ class DatabaseConfigBase(object):
     def load(cls, cfgfile):
         """load config from config file"""
 
+    @classmethod
+    def loads(cls, **kwargs):
+        """load config from kwargs"""
+
     def save(self, cfgfile):
         """save config"""
 

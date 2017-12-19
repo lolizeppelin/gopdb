@@ -1,5 +1,6 @@
 import six
 import os
+import eventlet
 import ConfigParser
 
 import psutil
@@ -8,6 +9,7 @@ from simpleutil.log import log as logging
 from simpleutil.config import cfg
 from simpleutil.utils import systemutils
 
+import goperation
 
 from gopdb import common
 from gopdb.api.rpc.impl import DatabaseConfigBase
@@ -21,12 +23,14 @@ if systemutils.POSIX:
     from simpleutil.utils.systemutils.posix import wait
     MYSQLSAFE = systemutils.find_executable('mysqld_safe')
     MYSQLINSTALL = systemutils.find_executable('mysql_install_db')
+    SH = systemutils.find_executable('sh')
     BASELOG = '/var/log/mysqld.log'
 else:
     # just for windows test
     from simpleutil.utils.systemutils import empty as wait
-    MYSQLSAFE = r'C:\Program Files\mysql\bin\mysqld_safe'
-    MYSQLINSTALL = r'C:\Program Files\mysql\bin\mysql_install_db'
+    MYSQLSAFE = r'C:\Program Files\mysql\bin\mysqld_safe.exe'
+    MYSQLINSTALL = r'C:\Program Files\mysql\bin\mysql_install_db.exe'
+    SH = r'C:\Program Files\Git\bin\sh.exe'
     BASELOG = r'C:\temp\mysqld.log'
 
 
@@ -93,8 +97,22 @@ def default_config():
 
 class MysqlConfig(DatabaseConfigBase):
 
-    def __init__(self, **kwargs):
+    def __init__(self, config):
         # default opts
+        if not isinstance(config, ConfigParser.ConfigParser):
+            raise TypeError('mysql config not ConfigParser')
+        self.config = config
+
+    @classmethod
+    def load(cls, cfgfile):
+        """load config from config file"""
+        config = ConfigParser.ConfigParser()
+        config.read(cfgfile)
+        return cls(config)
+
+    @classmethod
+    def loads(cls, **kwargs):
+        """load config from kwargs"""
         datadir = kwargs.pop('datadir')
         runuser = kwargs.pop('runuser')
         pidfile = kwargs.pop('pidfile')
@@ -103,28 +121,26 @@ class MysqlConfig(DatabaseConfigBase):
         # binlog on/off
         binlog = (kwargs.pop('binlog', None) or kwargs.pop('log-bin', None))
         # init mysql default config
-        self.config = default_config()
-        # read opts fron kwargs
+        config = default_config()
+        # set mysqld_safe opts
+        config.set('mysqld_safe', 'log-error', logfile)
+        # read opts from kwargs
         for k, v in six.iteritems(kwargs):
-            self.config.set('mysqld', k, v)
+            config.set('mysqld', k, v)
         # set default opts
-        self.config.set('mysqld', 'datadir', datadir)
-        self.config.set('mysqld', 'pid-file', pidfile)
-        self.config.set('mysqld', 'log-error', logfile)
-        self.config.set('mysqld_safe', 'log-error', logfile)
-        self.config.set('mysqld', 'user', runuser)
+        config.set('mysqld', 'datadir', datadir)
+        config.set('mysqld', 'pid-file', pidfile)
+        config.set('mysqld', 'log-error', logfile)
+        config.set('mysqld', 'user', runuser)
         # set default socket opts
-        self.config.set('mysqld', 'socket', sockfile)
+        config.set('mysqld', 'socket', sockfile)
         # ste logbin
         if binlog:
             conf = CONF[common.DB]
-            self.config.set('mysqld', 'log-bin', 'binlog')
-            self.config.set('mysqld', 'expire_logs_days', conf.expire_log_days)
-            self.config.set('mysqld', 'max_binlog_size', 270532608)
-
-    @classmethod
-    def load(cls, cfgfile):
-        """load config from config file"""
+            config.set('mysqld', 'log-bin', 'binlog')
+            config.set('mysqld', 'expire_logs_days', conf.expire_log_days)
+            config.set('mysqld', 'max_binlog_size', 270532608)
+        return cls(config)
 
     def save(self, cfgfile):
         """save config"""
@@ -133,9 +149,16 @@ class MysqlConfig(DatabaseConfigBase):
 
     def dump(self, cfgfile):
         """out put config"""
+        output = {}
+        for section in self.config.sections():
+            output[section] = self.config.items(section)
+        return output
 
     def update(self, cfgfile):
         """update config"""
+        config = ConfigParser.ConfigParser()
+        config.read(cfgfile)
+        self.config = config
 
 
 class DatabaseManager(DatabaseManagerBase):
@@ -149,7 +172,7 @@ class DatabaseManager(DatabaseManagerBase):
 
     def start(self, cfgfile, postrun=None, timeout=None, **kwargs):
         """stary database intance"""
-        args = [MYSQLSAFE, '--defaults-file=%s' % cfgfile]
+        args = [SH, MYSQLSAFE, '--defaults-file=%s' % cfgfile]
         args.extend(self.base_opts)
         if not systemutils.POSIX:
             # just for test on windows
@@ -169,7 +192,7 @@ class DatabaseManager(DatabaseManagerBase):
                 with open(BASELOG, 'ab') as f:
                     os.dup2(f.fileno(), 1)
                     os.dup2(f.fileno(), 2)
-                os.execv(MYSQLSAFE, args)
+                os.execv(SH, args)
             else:
                 os._exit(0)
         else:
@@ -183,28 +206,29 @@ class DatabaseManager(DatabaseManagerBase):
         """create database intance"""
         if not os.path.exists(cfgfile):
             raise
-        self.start(cfgfile)
-        args = [MYSQLINSTALL, '--defaults-file=%s' % cfgfile]
+        args = [SH, MYSQLINSTALL, '--defaults-file=%s' % cfgfile]
         args.extend(self.base_opts)
         logfile = kwargs.get('logfile')
         if not systemutils.POSIX:
             # just for test on windows
             LOG.info('will call %s', ' '.join(args))
         else:
-            pid = safe_fork()
-            if pid == 0:
-                logfile = logfile or os.devnull
-                with open(logfile, 'wb') as f:
-                    os.dup2(f.fileno(), 1)
-                    os.dup2(f.fileno(), 2)
-                os.execv(MYSQLINSTALL, args)
-            else:
-                try:
-                    wait(pid, timeout)
-                except:
-                    raise
-                finally:
-                    LOG.info('%s has been exit' % MYSQLINSTALL)
+            with goperation.tlock('gopdb-install', 30):
+                pid = safe_fork()
+                if pid == 0:
+                    logfile = logfile or os.devnull
+                    with open(logfile, 'wb') as f:
+                        os.dup2(f.fileno(), 1)
+                        os.dup2(f.fileno(), 2)
+                    os.execv(SH, args)
+                else:
+                    try:
+                        wait(pid, timeout)
+                    except:
+                        raise
+                    finally:
+                        LOG.info('%s has been exit' % MYSQLINSTALL)
+        eventlet.sleep(0)
         self.start(cfgfile)
         if postrun:
             postrun()
@@ -218,7 +242,7 @@ class DatabaseManager(DatabaseManagerBase):
 
     def save_conf(self, cfgfile, **configs):
         """update database config"""
-        dbconfig = self.config_cls(**configs)
+        dbconfig = self.config_cls.loads(**configs)
         dbconfig.save(cfgfile)
         systemutils.chmod(cfgfile, 022)
 

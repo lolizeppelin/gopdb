@@ -1,9 +1,10 @@
 import os
 import time
 import shutil
+import re
 import contextlib
-import inspect
 import eventlet
+import psutil
 
 from simpleutil.utils import uuidutils
 from simpleutil.utils import jsonutils
@@ -60,7 +61,7 @@ CREATESCHEMA = {
 
 def count_timeout(ctxt, kwargs):
     deadline = ctxt.get('deadline')
-    timeout = kwargs.get('timeout')
+    timeout = kwargs.pop('timeout', None)
     if deadline is None:
         return timeout
     deadline = deadline - int(time.time())
@@ -94,6 +95,34 @@ class Application(AppEndpointBase):
     def entity_group(self, entity):
         return 'gopdb'
 
+    def post_start(self):
+        pids = utils.find_process()
+        for entity in self.entitys:
+            _pid = self._find_from_pids(entity, pids)
+            if _pid:
+                self.konwn_database[entity] = _pid
+
+    def _esure(self, entity, username, cmdline):
+        datadir = False
+        runuser = False
+        if username == self.entity_user(entity):
+            runuser = True
+        if re.search('%s' % self.apppath(entity), cmdline):
+            datadir = True
+        if datadir and runuser:
+            return True
+        if datadir and not runuser:
+            LOG.error('entity %d with %s run user error' % (entity, self.apppath(entity)))
+            raise ValueError('Runuser not %s' % self.entity_user(entity))
+        return False
+
+    def _find_from_pids(self, entity, pids=None, impl=None):
+        if not pids:
+            pids = utils.find_process(impl)
+        for info in pids:
+            if self._esure(entity, info.get('username'), info.get('cmdline')):
+                return info.get('pid')
+
     def _db_conf(self, entity, dbtype):
         return os.path.join(self.entity_home(entity), '%s.conf' % dbtype)
 
@@ -106,13 +135,33 @@ class Application(AppEndpointBase):
         ports = self.manager.allocked_ports.get(common.DB)[entity]
         self.manager.free_ports(self, ports)
 
-    def _entity_status(self, entity, detail=False):
-        pass
+    def _entity_process(self, entity):
+        _pid = self.konwn_pids.get(entity)
+        if _pid:
+            try:
+                p = psutil.Process(pid=_pid)
+                if self._esure(entity, p.username(), p.cmdline()):
+                    info = dict(pid=p.pid, exe=p.exe(), cmdline=p.cmdline(), username=p.username())
+                    setattr(p, 'info', info)
+                    return p
+            except psutil.NoSuchProcess:
+                _pid = None
+        if not _pid:
+            _pid = self._find_from_pids(entity)
+        if not _pid:
+            return None
+        try:
+            p = psutil.Process(pid=_pid)
+            info = dict(pid=p.pid, exe=p.exe(), cmdline=p.cmdline(), username=p.username())
+            setattr(p, 'info', info)
+            return p
+        except psutil.NoSuchProcess:
+            return None
 
     def delete_entity(self, entity, token):
         if token != self._entity_token(entity):
             raise
-        if self._entity_status(entity):
+        if self._entity_process(entity):
             raise
         LOG.info('Try delete %s entity %d' % (self.namespace, entity))
         home = self.entity_home(entity)
@@ -151,19 +200,25 @@ class Application(AppEndpointBase):
                 LOG.info('Prepare database config file success')
 
                 def _notify_success():
-                    self.client.ports_add(agent_id=self.manager.agent_id,
-                                          endpoint=common.DB, entity=entity, ports=ports)
-                    eventlet.sleep(1)
+                    """notify database intance create success"""
                     try:
                         database_id = self.konwn_database.pop(entity)
                     except KeyError:
                         LOG.warning('Can not find entity database id, active fail')
                         return
                     self.client.database_update(database_id=database_id, body={'status': common.OK})
+
                 kwargs.update({'logfile': install_log})
                 # call database_install in green thread
                 eventlet.spawn_n(dbmanager.install, cfgfile, _notify_success, timeout,
                                  **kwargs)
+
+        def _port_notity():
+            """notify port bond"""
+            self.client.ports_add(agent_id=self.manager.agent_id,
+                                  endpoint=common.DB, entity=entity, ports=ports)
+
+        threadpool.add_thread(_port_notity)
         return port
 
     def rpc_create_entity(self, ctxt, entity, **kwargs):
@@ -177,7 +232,7 @@ class Application(AppEndpointBase):
                                                   result='create %s database fail, entity exist' % entity)
             timeout = count_timeout(ctxt, kwargs)
             try:
-                port = self.create_entity(entity, timeout, **kwargs)
+                self.create_entity(entity, timeout, **kwargs)
                 resultcode = manager_common.RESULT_SUCCESS
                 result = 'create database success'
             except Exception as e:
@@ -190,7 +245,7 @@ class Application(AppEndpointBase):
                                           result=result,
                                           details=[dict(detail_id=entity,
                                                    resultcode=resultcode,
-                                                   result='result')])
+                                                   result='wait database start')])
 
     def rpc_post_create_entity(self, ctxt, entity, **kwargs):
         database_id = kwargs.pop('database_id')
@@ -233,10 +288,28 @@ class Application(AppEndpointBase):
                                           details=details)
 
     def rpc_start_entity(self, ctxt, entity, **kwargs):
-        pass
+        dbtype = kwargs.pop('dbtype')
+        dbmanager = utils.impl_cls('rpc', dbtype)
+        cfgfile = self._db_conf(entity, dbtype)
+        with self.lock(entity, timeout=3):
+            if self._entity_process(entity):
+                raise
+            dbmanager.start(cfgfile)
+            eventlet.sleep(0.5)
+        p = self._entity_process(entity)
+        return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                          ctxt=ctxt,
+                                          result='start entity success',
+                                          details=[dict(detail_id=entity,
+                                                   resultcode=manager_common.RESULT_SUCCESS,
+                                                   result=p.info)])
 
     def rpc_stop_entity(self, ctxt, entity, **kwargs):
-        pass
+        dbtype = kwargs.pop('dbtype')
+        dbmanager = utils.impl_cls('rpc', dbtype)
+        p = self._entity_process(entity)
+        p.terminal()
+
 
     def rpc_status_entity(self, ctxt, entity, **kwargs):
-        pass
+        p = self._entity_process(entity)
