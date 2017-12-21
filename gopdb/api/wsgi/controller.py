@@ -72,6 +72,12 @@ def _impl(database_id):
 @singleton.singleton
 class DatabaseReuest(BaseContorller):
 
+    def reflect(self, req, impl, body=None):
+        body = body or {}
+        dbmanager = utils.impl_cls('wsgi', impl)
+        reflect_list = dbmanager.reflect_database(**body)
+        return resultutils.results(result='reflect database success', data=reflect_list)
+
     def select(self, req, body=None):
         body = body or {}
         raise NotImplementedError

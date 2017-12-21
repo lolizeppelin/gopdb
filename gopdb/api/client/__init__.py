@@ -9,7 +9,8 @@ from gopdb.common import ENDPOINTKEY
 
 class GopDBClient(GopHttpClientApi):
 
-    select_database_path = '/gopdb/select'
+    select_databases_path = '/gopdb/select'
+    reflect_databases_path = '/gopdb/%s/reflect'
     databases_path = '/gopdb/databases'
     database_path = '/gopdb/databases/%s'
     database_path_ex = '/gopdb/databases/%s/%s'
@@ -24,8 +25,17 @@ class GopDBClient(GopHttpClientApi):
         self.endpoint = DB
         super(GopDBClient, self).__init__(httpclient)
 
+
+    def reflect_database(self, impl, body):
+        resp, results = self.get(action=self.reflect_databases_path % impl, body=body)
+        if results['resultcode'] != common.RESULT_SUCCESS:
+            raise ServerExecuteRequestError(message='select database fail:%d' % results['resultcode'],
+                                            code=resp.status_code,
+                                            resone=results['result'])
+        return results
+
     def select_database(self, body=None):
-        resp, results = self.get(action=self.select_database_path, body=body)
+        resp, results = self.get(action=self.select_databases_path, body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='select database fail:%d' % results['resultcode'],
                                             code=resp.status_code,

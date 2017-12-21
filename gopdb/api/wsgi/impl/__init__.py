@@ -21,6 +21,23 @@ class DatabaseManagerBase(object):
 
     # ----------database action-------------
 
+    def reflect_database(self, **kwargs):
+        session = endpoint_session(readonly=True)
+        _result = []
+        with self._reflect_database(session, **kwargs) as filters:
+            key = filters[0]
+            filter = filters[0]
+            query = model_query(session, GopDatabase, filter=filter)
+            for _database in query:
+                dbinfo = dict(database_id=_database.database_id)
+                dbinfo.setdefault(key, _database.reflection_id)
+                _result.append(dbinfo)
+        return _result
+
+    @abc.abstractmethod
+    def _reflect_database(self, session, **kwargs):
+        """impl reflect code"""
+
     def show_database(self, database_id, **kwargs):
         """show database info"""
         session = endpoint_session(readonly=True)

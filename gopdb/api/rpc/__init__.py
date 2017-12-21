@@ -6,6 +6,8 @@ import contextlib
 import eventlet
 import psutil
 
+from collections import namedtuple
+
 from simpleutil.utils import uuidutils
 from simpleutil.utils import jsonutils
 from simpleutil.utils import singleton
@@ -79,7 +81,7 @@ class Application(AppEndpointBase):
         self.client = GopDBClient(get_http())
         self.delete_tokens = {}
         self.konwn_database = {}
-        self.konwn_pids = {}
+        # self.konwn_pids = {}
 
     @property
     def apppathname(self):
@@ -98,11 +100,20 @@ class Application(AppEndpointBase):
     def post_start(self):
         super(Application, self).post_start()
         pids = utils.find_process()
+        # reflect entity database_id
+        dbmaps = self.client.reflect_database(impl='local', body=dict(entitys=self.entitys))['data']
+        for dbinfo in dbmaps:
+            _entity = int(dbinfo.get('entity'))
+            _database_id = dbinfo.get('database_id')
+            if _entity in self.konwn_database:
+                raise RuntimeError('Database Entity %d Duplicate' % _entity)
+            self.konwn_database.setdefault(_entity, dict(database_id=_database_id, pid=None))
+        # find entity pid
         for entity in self.entitys:
             _pid = self._find_from_pids(entity, pids)
             if _pid:
                 LOG.info('Database entity %d is running at %d' % (entity, _pid))
-                self.konwn_database[entity] = _pid
+                self.konwn_database[entity]['pid'] = _pid
 
     def _esure(self, entity, username, cmdline):
         datadir = False
@@ -154,13 +165,16 @@ class Application(AppEndpointBase):
         if not _pid:
             _pid = self._find_from_pids(entity)
         if not _pid:
+            self.konwn_database[entity]['pid'] = None
             return None
         try:
             p = psutil.Process(pid=_pid)
             info = dict(pid=p.pid, exe=p.exe(), cmdline=p.cmdline(), username=p.username())
             setattr(p, 'info', info)
+            self.konwn_database[entity]['pid'] = _pid
             return p
         except psutil.NoSuchProcess:
+            self.konwn_database[entity]['pid'] = None
             return None
 
     def delete_entity(self, entity, token):
@@ -207,12 +221,13 @@ class Application(AppEndpointBase):
 
                 def _notify_success():
                     """notify database intance create success"""
-                    try:
-                        database_id = self.konwn_database.pop(entity)
-                    except KeyError:
+                    dbinfo = self.konwn_database.get(entity)
+                    if not dbinfo:
                         LOG.warning('Can not find entity database id, active fail')
                         return
-                    self.client.database_update(database_id=database_id, body={'status': common.OK})
+                    if self._entity_process(entity):
+                        self.client.database_update(database_id=dbinfo.get('database_id'),
+                                                    body={'status': common.OK})
 
                 kwargs.update({'logfile': install_log})
                 # call database_install in green thread
@@ -255,7 +270,7 @@ class Application(AppEndpointBase):
 
     def rpc_post_create_entity(self, ctxt, entity, **kwargs):
         database_id = kwargs.pop('database_id')
-        self.konwn_database.setdefault(entity, database_id)
+        self.konwn_database.setdefault(entity, dict(database_id=database_id, pid=None))
 
     def rpc_reset_entity(self, ctxt, entity, **kwargs):
         entity = int(entity)

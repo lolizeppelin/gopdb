@@ -1,19 +1,32 @@
 import contextlib
 
+from sqlalchemy.pool import NullPool
+
+from simpleutil.utils import argutils
+from simpleutil.utils import attributes
+
+from simpleservice.ormdb.api import model_query
+from simpleservice.ormdb.argformater import connformater
+from simpleservice.ormdb.engines import create_engine
+from simpleservice.ormdb.tools import utils
+
 from gopdb import common
 from gopdb.api.wsgi.impl import DatabaseManagerBase
 from gopdb.api.wsgi.impl import exceptions
 from gopdb.api.wsgi.impl import privilegeutils
 from gopdb.models import RecordDatabase
-from simpleservice.ormdb.api import model_query
-from simpleservice.ormdb.argformater import connformater
-from simpleservice.ormdb.engines import create_engine
-from simpleservice.ormdb.tools import utils
-from simpleutil.utils import attributes
-from sqlalchemy.pool import NullPool
+from gopdb.models import GopDatabase
 
 
 class DatabaseManager(DatabaseManagerBase):
+
+    @contextlib.contextmanager
+    def _reflect_database(self, session, **kwargs):
+        """impl reflect code"""
+        records = kwargs.get('records')
+        records = argutils.map_with(records, str)
+        filter = GopDatabase.reflection_id.in_(records)
+        yield 'record_id', filter
 
     @contextlib.contextmanager
     def _show_database(self, session, database, **kwargs):

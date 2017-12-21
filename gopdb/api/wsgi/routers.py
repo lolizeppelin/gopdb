@@ -18,8 +18,13 @@ class Routers(router.RoutersBase):
                                                    controller.FAULT_MAP)
 
         self._add_resource(mapper, db_controller,
-                           path='/%s/select',
+                           path='/%s/select' % common.DB,
                            get_action='select')
+
+        self._add_resource(mapper, db_controller,
+                           path='/%s/{impl}/reflect' % common.DB,
+                           get_action='reflect')
+
         collection = mapper.collection(collection_name=collection_name,
                                        resource_name=resource_name,
                                        controller=db_controller,

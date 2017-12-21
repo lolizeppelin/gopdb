@@ -2,6 +2,7 @@ import contextlib
 from sqlalchemy.pool import NullPool
 
 from simpleutil.utils import uuidutils
+from simpleutil.utils import argutils
 from simpleservice.ormdb.argformater import connformater
 from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
@@ -12,6 +13,8 @@ from gopdb import common
 from gopdb.api.wsgi.impl import DatabaseManagerBase
 from gopdb.api.wsgi.impl import exceptions
 from gopdb.api.wsgi.impl import privilegeutils
+
+from gopdb.models import GopDatabase
 
 entity_controller = EntityReuest()
 
@@ -27,6 +30,14 @@ class DatabaseManager(DatabaseManagerBase):
         if not agent_attributes:
             raise exceptions.AcceptableDbError('Agent %d not online or not exist' % agent_id)
         return agent_attributes.get('local_ip'), port
+
+    @contextlib.contextmanager
+    def _reflect_database(self, session, **kwargs):
+        """impl reflect code"""
+        entytis = kwargs.get('entytis')
+        entytis = argutils.map_with(entytis, str)
+        filter = GopDatabase.reflection_id.in_(entytis)
+        yield 'entity', filter
 
     @contextlib.contextmanager
     def _show_database(self, session, database, **kwargs):
