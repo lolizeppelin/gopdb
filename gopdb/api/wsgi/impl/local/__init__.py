@@ -25,11 +25,14 @@ class DatabaseManager(DatabaseManagerBase):
         _entity = entity_controller.show(req=req, entity=entity,
                                          endpoint=common.DB, body={'ports': True})['data'][0]
         port = _entity['ports'][0] if _entity['ports'] else -1
-        agent_id = _entity['agent_id']
-        agent_attributes = entity_controller.agent_attributes(agent_id)
+        agent_attributes = _entity['attributes']
+        # agent_attributes = entity_controller.agent_attributes(agent_id)
         if not agent_attributes:
-            raise exceptions.AcceptableDbError('Agent %d not online or not exist' % agent_id)
-        return agent_attributes.get('local_ip'), port
+            local_ip = 'unkonwn'
+            # raise exceptions.AcceptableDbError('Agent %d not online or not exist' % agent_id)
+        else:
+            local_ip = agent_attributes.get('local_ip')
+        return local_ip, port
 
     @contextlib.contextmanager
     def _reflect_database(self, session, **kwargs):
