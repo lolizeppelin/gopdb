@@ -81,7 +81,6 @@ class Application(AppEndpointBase):
         self.client = GopDBClient(get_http())
         self.delete_tokens = {}
         self.konwn_database = {}
-        # self.konwn_pids = {}
 
     @property
     def apppathname(self):
@@ -152,7 +151,7 @@ class Application(AppEndpointBase):
         self.manager.free_ports(self, ports)
 
     def _entity_process(self, entity):
-        _pid = self.konwn_pids.get(entity)
+        _pid = self.konwn_database.get(entity).get('pid')
         if _pid:
             try:
                 p = psutil.Process(pid=_pid)
@@ -231,8 +230,10 @@ class Application(AppEndpointBase):
 
                 kwargs.update({'logfile': install_log})
                 # call database_install in green thread
-                eventlet.spawn_n(dbmanager.install, cfgfile, _notify_success, timeout,
-                                 **kwargs)
+                # eventlet.spawn_n(dbmanager.install, cfgfile, _notify_success, timeout,
+                #                  **kwargs)
+                threadpool.add_thread(dbmanager.install, cfgfile, _notify_success, timeout,
+                                      **kwargs)
 
         def _port_notity():
             """notify port bond"""
