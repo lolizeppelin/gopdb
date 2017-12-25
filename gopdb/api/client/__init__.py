@@ -3,7 +3,7 @@ from simpleservice.plugin.exceptions import ServerExecuteRequestError
 from goperation.api.client import GopHttpClientApi
 from goperation.manager import common
 
-from gopdb.common import DB
+# from gopdb.common import DB
 from gopdb.common import ENDPOINTKEY
 
 
@@ -22,9 +22,8 @@ class GopDBClient(GopHttpClientApi):
     quote_path = '/gopdb/quotes/%s'
 
     def __init__(self, httpclient):
-        self.endpoint = DB
+        # self.endpoint = DB
         super(GopDBClient, self).__init__(httpclient)
-
 
     def reflect_database(self, impl, body):
         resp, results = self.get(action=self.reflect_databases_path % impl, body=body)
@@ -206,4 +205,3 @@ class GopDBClient(GopHttpClientApi):
                                             code=resp.status_code,
                                             resone=results['result'])
         return results
-

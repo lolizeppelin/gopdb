@@ -106,17 +106,17 @@ class DatabaseReuest(BaseContorller):
                  GopDatabase.status,
                  GopDatabase.desc]
 
-        options = []
+        option = None
         if slaves:
             columns.append(GopDatabase.slaves)
-            options.append(joinedload(GopDatabase.slaves, innerjoin=False))
+            option = joinedload(GopDatabase.slaves, innerjoin=False)
 
         results = resultutils.bulk_results(session,
                                            model=GopDatabase,
                                            columns=columns,
                                            counter=GopDatabase.database_id,
                                            order=order, desc=desc,
-                                           option=options,
+                                           option=option,
                                            filter=_filter,
                                            page_num=page_num)
         for column in results['data']:
