@@ -21,7 +21,7 @@ TableBase = declarative.declarative_base(cls=TableBase)
 
 class SchemaQuote(TableBase):
     quote_id = sa.Column(INTEGER(unsigned=True), nullable=False, primary_key=True, autoincrement=True)
-    schema_id = sa.Column(sa.ForeignKey('gopschemas.schema_id', ondelete="RESTRICT", onupdate='RESTRICT'),
+    schema_id = sa.Column(sa.ForeignKey('gopschemas.schema_id', ondelete="CASCADE", onupdate='RESTRICT'),
                           nullable=False)
     database_id = sa.Column(sa.ForeignKey('gopdatabases.database_id', ondelete="RESTRICT", onupdate='RESTRICT'),
                             nullable=False)
