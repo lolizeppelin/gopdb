@@ -209,6 +209,23 @@ class SchemaReuest(BaseContorller):
             }
     }
 
+
+    CREATESCHEMA = {'type': 'object',
+                    'required': ['schema','auth'],
+                    'properties':{
+                        'auth': AUTHSCHEMA,
+                        'options': OPTSCHEMA,
+                        'schema': {'type': 'string'},
+                        'bind': {'type': 'object',
+                                 'required': ['entity','endpoint'],
+                                 'properties': {'entity': {'type': 'integer', 'minimum': 1},
+                                                'endpoint': {'type': 'string'},
+                                                'desc': {'type': 'string'}}
+                                 }
+                        }
+                    }
+
+
     SCHEMAREG = re.compile('^[a-z][a-z0-9_]+$', re.IGNORECASE)
 
     def _validate_schema(self, schema):
@@ -237,21 +254,14 @@ class SchemaReuest(BaseContorller):
         return results
 
     def create(self, req, database_id, body=None):
-        """
-        body = {'auth': {'user': 'root', 'passwd': '1111',
-                 'ro_user': 'selecter', 'ro_passwd': '111',
-                 'source': '%'},
-        'options': {'charcter_set': 'utf-8', 'collation_type': None},
-        'name': 'gamserver_db_1'}
+        """create schema in database with database_id
         """
         body = body or {}
+        jsonutils.schema_validate(body, self.CREATESCHEMA)
         auth = body.pop('auth', None)
         options = body.pop('options', None)
-        schema = body.pop('name', None)
+        schema = body.pop('schema', None)
         self._validate_schema(schema)
-        jsonutils.schema_validate(auth, self.AUTHSCHEMA)
-        if options:
-            jsonutils.schema_validate(options, self.OPTSCHEMA)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
