@@ -152,7 +152,10 @@ class Application(AppEndpointBase):
         self.manager.free_ports(self, ports)
 
     def _entity_process(self, entity):
-        _pid = self.konwn_database.get(entity).get('pid')
+        entityinfo = self.konwn_database.get(entity)
+        if not entityinfo:
+            raise ValueError('Entity not found')
+        _pid = entityinfo.get('pid')
         if _pid:
             try:
                 p = psutil.Process(pid=_pid)
@@ -192,7 +195,8 @@ class Application(AppEndpointBase):
                 raise
             else:
                 self._free_port(entity)
-                self.entitys_map.pop(entity)
+                self.entitys_map.pop(entity, None)
+                self.konwn_database.pop(entity, None)
                 systemutils.drop_user(self.entity_user(entity))
 
     def create_entity(self, entity, timeout, **kwargs):
