@@ -27,7 +27,7 @@ class DatabaseManagerBase(object):
         with self._reflect_database(session, **kwargs) as filters:
             key = filters[0]
             _filter = filters[1]
-            if not _filter:
+            if _filter is None:
                 return _result
             query = model_query(session, GopDatabase, filter=_filter)
             for _database in query:
