@@ -209,22 +209,20 @@ class SchemaReuest(BaseContorller):
             }
     }
 
-
     CREATESCHEMA = {'type': 'object',
-                    'required': ['schema','auth'],
-                    'properties':{
+                    'required': ['schema', 'auth'],
+                    'properties': {
                         'auth': AUTHSCHEMA,
                         'options': OPTSCHEMA,
                         'schema': {'type': 'string'},
                         'bind': {'type': 'object',
-                                 'required': ['entity','endpoint'],
+                                 'required': ['entity', 'endpoint'],
                                  'properties': {'entity': {'type': 'integer', 'minimum': 1},
                                                 'endpoint': {'type': 'string'},
                                                 'desc': {'type': 'string'}}
                                  }
                         }
                     }
-
 
     SCHEMAREG = re.compile('^[a-z][a-z0-9_]+$', re.IGNORECASE)
 
