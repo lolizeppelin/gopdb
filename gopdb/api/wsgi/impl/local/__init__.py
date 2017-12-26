@@ -37,9 +37,12 @@ class DatabaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _reflect_database(self, session, **kwargs):
         """impl reflect code"""
-        entitys = kwargs.get('entitys')
-        entitys = argutils.map_with(entitys, str)
-        _filter = GopDatabase.reflection_id.in_(entitys)
+        entitys = kwargs.get('entitys', None)
+        if entitys:
+            entitys = argutils.map_with(entitys, str)
+            _filter = GopDatabase.reflection_id.in_(entitys)
+        else:
+            _filter = None
         yield 'entity', _filter
 
     @contextlib.contextmanager

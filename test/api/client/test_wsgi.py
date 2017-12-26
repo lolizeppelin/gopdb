@@ -48,8 +48,8 @@ def show_test():
     print client.database_show(database_id=1, body={})
 
 
-def delete_test():
-    print client.database_delete(database_id=1, body={})
+def delete_test(database_id):
+    print client.database_delete(database_id=database_id, body={})
 
 
 def schema_create_test(database_id):
@@ -73,6 +73,9 @@ def quote_show(quote_id, body=None):
     print client.quote_show(quote_id, body)
 
 index_test()
+
+
+delete_test(database_id=38)
 # schema_delete_test(3)
 # quote_show(quote_id=1, body={'schema': True, 'database': True})
 # create_local_test()
