@@ -265,7 +265,9 @@ class Application(AppEndpointBase):
                 result = 'create database success'
             except Exception as e:
                 resultcode = manager_common.RESULT_ERROR
-                result = 'create database fail with %s' % e.__class__.__name__
+                result = 'create database fail with %s:%s' % (e.__class__.__name__,
+                                                              str(e.message)
+                                                              if hasattr(e, 'message') else 'unknown err msg')
 
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
@@ -305,7 +307,8 @@ class Application(AppEndpointBase):
                 result = 'delete %d success' % entity
             except Exception as e:
                 resultcode = manager_common.RESULT_ERROR
-                result = 'delete %d fail with %s' % (entity, e.__class__.__name__)
+                result = 'delete %d fail with %s:%s' % (entity, e.__class__.__name__,
+                                                        str(e.message) if hasattr(e, 'message') else 'unknown err msg')
         details.append(dict(detail_id=entity,
                             resultcode=resultcode,
                             result=result))
