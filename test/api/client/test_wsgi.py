@@ -72,7 +72,7 @@ def schema_bond(database_id):
 def quote_show(quote_id, body=None):
     print client.quote_show(quote_id, body)
 
-# index_test()
+index_test()
 # schema_delete_test(3)
 # quote_show(quote_id=1, body={'schema': True, 'database': True})
-create_local_test()
+# create_local_test()

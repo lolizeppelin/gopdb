@@ -106,6 +106,7 @@ class Application(AppEndpointBase):
             _database_id = dbinfo.get('database_id')
             if _entity in self.konwn_database:
                 raise RuntimeError('Database Entity %d Duplicate' % _entity)
+            LOG.info('entity %d with database id %d' % (_entity, _database_id))
             self.konwn_database.setdefault(_entity, dict(database_id=_database_id, pid=None))
         # find entity pid
         for entity in self.entitys:

@@ -26,8 +26,8 @@ class DatabaseManagerBase(object):
         _result = []
         with self._reflect_database(session, **kwargs) as filters:
             key = filters[0]
-            filter = filters[0]
-            query = model_query(session, GopDatabase, filter=filter)
+            _filter = filters[1]
+            query = model_query(session, GopDatabase, filter=_filter)
             for _database in query:
                 dbinfo = dict(database_id=_database.database_id)
                 dbinfo.setdefault(key, _database.reflection_id)
