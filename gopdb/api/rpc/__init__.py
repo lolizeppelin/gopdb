@@ -179,9 +179,9 @@ class Application(AppEndpointBase):
 
     def delete_entity(self, entity, token):
         if token != self._entity_token(entity):
-            raise
+            raise ValueError('Delete token error')
         if self._entity_process(entity):
-            raise
+            raise ValueError('Target entity is running')
         LOG.info('Try delete %s entity %d' % (self.namespace, entity))
         home = self.entity_home(entity)
         if os.path.exists(home):
@@ -193,6 +193,7 @@ class Application(AppEndpointBase):
             else:
                 self._free_port(entity)
                 self.entitys_map.pop(entity)
+                systemutils.drop_user(self.entity_user(entity))
 
     def create_entity(self, entity, timeout, **kwargs):
         dbtype = kwargs.pop('dbtype')
