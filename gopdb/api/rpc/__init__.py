@@ -149,7 +149,7 @@ class Application(AppEndpointBase):
 
     def _free_port(self, entity):
         ports = self.manager.allocked_ports.get(common.DB)[entity]
-        self.manager.free_ports(self, ports)
+        self.manager.free_ports(ports)
 
     def _entity_process(self, entity):
         entityinfo = self.konwn_database.get(entity)
@@ -192,12 +192,10 @@ class Application(AppEndpointBase):
                 shutil.rmtree(home)
             except Exception:
                 LOG.exception('delete error')
-                raise
-            else:
-                self._free_port(entity)
-                self.entitys_map.pop(entity, None)
-                self.konwn_database.pop(entity, None)
-                systemutils.drop_user(self.entity_user(entity))
+        self._free_port(entity)
+        self.entitys_map.pop(entity, None)
+        self.konwn_database.pop(entity, None)
+        systemutils.drop_user(self.entity_user(entity))
 
     def create_entity(self, entity, timeout, **kwargs):
         dbtype = kwargs.pop('dbtype')

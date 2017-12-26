@@ -76,7 +76,8 @@ class GopDBClient(GopHttpClientApi):
         return results
 
     def database_delete(self, database_id, body):
-        resp, results = self.delete(action=self.database_path % str(database_id), body=body)
+        resp, results = self.delete(action=self.database_path % str(database_id), body=body,
+                                    timeout=10)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='delete database %s fail:%d' %
                                                     (str(database_id), results['resultcode']),
