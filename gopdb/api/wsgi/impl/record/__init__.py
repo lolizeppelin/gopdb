@@ -107,7 +107,7 @@ class DatabaseManager(DatabaseManagerBase):
             port = _record.port
             if database.passwd:
                 connection = connformater % dict(user=database.user, passwd=database.passwd,
-                                                 host=host, port=port)
+                                                 host=host, port=port, schem=schema)
                 _engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
                 utils.create_schema(engine, auths=auths,
                                     charcter_set=options.get('charcter_set'),

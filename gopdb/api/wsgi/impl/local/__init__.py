@@ -108,7 +108,7 @@ class DatabaseManager(DatabaseManagerBase):
         try:
             local_ip, port = self._get_entity(req, int(database.reflection_id))
             connection = connformater % dict(user=database.user, passwd=database.passwd,
-                                             host=local_ip, port=port)
+                                             host=local_ip, port=port, schem=schema)
             _engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
             utils.create_schema(_engine, auths=auths,
                                 charcter_set=options.get('charcter_set'),
