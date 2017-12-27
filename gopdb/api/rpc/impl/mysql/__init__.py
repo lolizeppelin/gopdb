@@ -269,6 +269,8 @@ class DatabaseManager(DatabaseManagerBase):
                 "update user set user='%s', password=password('%s') where user='root'" % (conf.localroot,
                                                                                           conf.localpass),
                 "grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'" % _auth ,
+                "grant grant option on *.* to '%(user)s'@'%(source)s'" % dict(user=_auth.get('user'),
+                                                                              source=_auth.get('source')) ,
                 "FLUSH PRIVILEGES"]
         with engine.connect() as conn:
             LOG.info('Login mysql from unix sock success, try init privileges')
