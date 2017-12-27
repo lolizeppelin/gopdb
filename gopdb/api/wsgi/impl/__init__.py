@@ -240,6 +240,7 @@ class DatabaseManagerBase(object):
             schemas = [_schema.schema for _schema in _database.schemas]
             if schema in schemas:
                 raise exceptions.AcceptableDbError('Duplicate schema name Duplicate')
+            options = options or {'charcter_set': 'utf8'}
             with self._create_schema(session, _database, schema, auths, options, **kwargs) as address:
                 gop_schema = GopSchema(schema=schema,
                                        database_id=_database.database_id,
@@ -248,7 +249,7 @@ class DatabaseManagerBase(object):
                                        ro_user=auth.get('ro_user'),
                                        ro_passwd=auth.get('ro_passwd'),
                                        source=auth.get('source'),
-                                       charcter_set=options.get('charcter_set') or 'utf8',
+                                       charcter_set=options.get('charcter_set'),
                                        collation_type=options.get('collation_type'))
                 session.add(gop_schema)
                 session.flush()

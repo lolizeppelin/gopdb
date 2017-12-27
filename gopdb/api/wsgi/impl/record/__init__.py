@@ -99,7 +99,6 @@ class DatabaseManager(DatabaseManagerBase):
     def _create_schema(self, session,
                        database, schema, auths, options, **kwargs):
         """create new schema intance on database_id"""
-        engine = None
         try:
             _record = model_query(session, RecordDatabase,
                                   filter=RecordDatabase.record_id == int(database.reflection_id)).one()
@@ -107,16 +106,13 @@ class DatabaseManager(DatabaseManagerBase):
             port = _record.port
             if database.passwd:
                 connection = connformater % dict(user=database.user, passwd=database.passwd,
-                                                 host=host, port=port, schem=schema)
-                _engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
+                                                 host=host, port=port, schema=schema)
+                engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
                 utils.create_schema(engine, auths=auths,
                                     charcter_set=options.get('charcter_set'),
                                     collation_type=options.get('collation_type'))
-                engine = _engine
             yield host, port
         except Exception:
-            if engine:
-                utils.drop_schema(engine, auths)
             raise
 
     @contextlib.contextmanager

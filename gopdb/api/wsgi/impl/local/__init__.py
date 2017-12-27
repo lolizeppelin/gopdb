@@ -3,6 +3,7 @@ from sqlalchemy.pool import NullPool
 
 from simpleutil.utils import uuidutils
 from simpleutil.utils import argutils
+from simpleutil.log import log as logging
 from simpleservice.ormdb.argformater import connformater
 from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
@@ -15,6 +16,8 @@ from gopdb.api.wsgi.impl import exceptions
 from gopdb.api.wsgi.impl import privilegeutils
 
 from gopdb.models import GopDatabase
+
+LOG = logging.getLogger(__name__)
 
 entity_controller = EntityReuest()
 
@@ -104,20 +107,17 @@ class DatabaseManager(DatabaseManagerBase):
                        database, schema, auths, options, **kwargs):
         """create new schema intance on database_id"""
         req = kwargs.pop('req')
-        engine = None
         try:
             local_ip, port = self._get_entity(req, int(database.reflection_id))
             connection = connformater % dict(user=database.user, passwd=database.passwd,
-                                             host=local_ip, port=port, schem=schema)
-            _engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
-            utils.create_schema(_engine, auths=auths,
+                                             host=local_ip, port=port, schema=schema)
+            engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
+            utils.create_schema(engine, auths=auths,
                                 charcter_set=options.get('charcter_set'),
                                 collation_type=options.get('collation_type'))
-            engine = _engine
             yield local_ip, port
         except Exception:
-            if engine:
-                utils.drop_schema(engine, auths)
+            LOG.exception('Create schema fail')
             raise
 
     @contextlib.contextmanager
