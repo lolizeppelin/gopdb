@@ -193,7 +193,7 @@ class Application(AppEndpointBase):
             except Exception:
                 LOG.exception('delete error')
         self._free_port(entity)
-        self.entitys_map.discard(entity)
+        self.entitys_map.pop(entity, None)
         self.konwn_database.pop(entity, None)
         systemutils.drop_user(self.entity_user(entity))
 
