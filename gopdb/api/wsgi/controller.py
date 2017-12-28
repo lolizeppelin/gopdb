@@ -283,6 +283,7 @@ class SchemaReuest(BaseContorller):
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
+        LOG.info('Try delete schema %s from %d' % (schema, database_id))
         dbresult = dbmanager.delete_schema(database_id, schema, **kwargs)
         return resultutils.results(result='delete schema success', data=[dbresult, ])
 
