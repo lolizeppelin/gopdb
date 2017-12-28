@@ -308,6 +308,7 @@ class SchemaReuest(BaseContorller):
         desc = body.get('desc')
         esure = body.get('esure', True)
         entity = int(body.pop('entity'))
+        quote_id = body.get('quote_id')
         endpoint = body.pop(common.ENDPOINTKEY)
         if esure:
             # TODO log entity info
@@ -335,9 +336,10 @@ class SchemaReuest(BaseContorller):
                         raise exceptions.AcceptableDbError('Slave %d not found' % slave)
                     quote_database_id = slave
                 else:
-                    # TODO auto select database
+                    # TODO auto select slave database
                     quote_database_id = _database.slaves[0]
-            schema_quote = SchemaQuote(schema_id=_schema.schema_id,
+            schema_quote = SchemaQuote(quote_id=quote_id,
+                                       schema_id=_schema.schema_id,
                                        database_id=quote_database_id,
                                        entity=entity, endpoint=endpoint, desc=desc)
             session.add(schema_quote)
@@ -357,7 +359,11 @@ class SchemaReuest(BaseContorller):
             schema_quote = query.one()
             query.delete()
         return resultutils.results(result='unquote from %s.%d success' % (schema_quote.database_id,
-                                                                          schema_quote.schema_id))
+                                                                          schema_quote.schema_id,),
+                                   data=[dict(quote_id=schema_quote.quote_id,
+                                              schema_id=schema_quote.schema_id,
+                                              entity=schema_quote.entity,
+                                              endpoint=schema_quote.endpoint)])
 
     def quote(self, req, quote_id, body=None):
         """show schema quote info"""
