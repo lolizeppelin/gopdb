@@ -359,6 +359,7 @@ class SchemaReuest(BaseContorller):
                                                                           schema_quote.schema_id))
 
     def quote(self, req, quote_id, body=None):
+        """show schema quote info"""
         body = body or {}
         session = endpoint_session(readonly=True)
         query = model_query(session, SchemaQuote, filter=SchemaQuote.quote_id == quote_id)

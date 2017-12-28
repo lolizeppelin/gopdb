@@ -9,6 +9,8 @@ from goperation.api.client import ManagerClient
 from gopdb.api.client import GopDBClient
 from gopdb import common
 
+from goperation.manager import common as manager_common
+
 
 a = 'C:\\Users\\loliz_000\\Desktop\\etc\\goperation\\goperation.conf'
 b = 'C:\\Users\\loliz_000\\Desktop\\etc\\goperation\\gcenter.conf'
@@ -23,6 +25,10 @@ httpclient = ManagerClient(wsgi_url, wsgi_port, timeout=30)
 client = GopDBClient(httpclient)
 
 
+def active_agent(agent_id):
+    print client.agent_active(agent_id, manager_common.ACTIVE)
+
+
 def create_test():
     print client.databases_create(body={'impl': 'record',
                                         'user': 'root',
@@ -32,12 +38,12 @@ def create_test():
                                         'port': 3307})
 
 
-def create_local_test():
+def create_local_test(agent_id):
     print client.databases_create(body={'impl': 'local',
-                                        'agent_id': 1,
+                                        'agent_id': agent_id,
                                         'dbtype': 'mysql',
                                         'user': 'root',
-                                        'passwd': 111111})
+                                        'passwd': '111111'})
 
 def index_test():
     print client.databases_index(body={})
@@ -72,10 +78,11 @@ def schema_bond(database_id):
 def quote_show(quote_id, body=None):
     print client.quote_show(quote_id, body)
 
-index_test()
 
+# active_agent(agent_id=2)
 
-delete_test(database_id=38)
+# index_test()
+# delete_test(database_id=39)
 # schema_delete_test(3)
 # quote_show(quote_id=1, body={'schema': True, 'database': True})
-# create_local_test()
+create_local_test(2)

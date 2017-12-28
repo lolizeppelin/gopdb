@@ -186,18 +186,19 @@ class DatabaseManagerBase(object):
     def show_schema(self, database_id, schema, secret, **kwargs):
         """show schema info"""
         session = endpoint_session()
-        query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
-        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
-        _database = query.one()
-        if not _database.is_master:
-            raise exceptions.AcceptableDbError('Database is slave, can not get schema')
-        _schema = None
-        for __schema in _database.schemas:
-            if __schema.schema == schema:
-                _schema = __schema
-                break
+        query = model_query(session, GopSchema, filter=and_(GopSchema.database_id == database_id,
+                                                            GopSchema.schema == schema))
+        show_quotes = kwargs.pop('quotes', False)
+        if show_quotes:
+            query = query.options(joinedload(GopSchema.quotes, innerjoin=False))
+        _schema = query.one_or_none()
         if not _schema:
             raise exceptions.AcceptableSchemaError('Schema not not be found in %d' % database_id)
+
+        _database = _schema.database
+        if not _database.is_master:
+            raise exceptions.AcceptableDbError('Database is slave, can not get schema')
+
         _result = dict(database_id=database_id,
                        impl=_database.impl,
                        dbtype=_database.dbtype,
@@ -205,6 +206,10 @@ class DatabaseManagerBase(object):
                        schema=_schema.schema,
                        schema_id=_schema.schema_id,
                        desc=_schema.desc)
+
+        if show_quotes:
+            _result.setdefault('quotes', [_quote.quote_id for _quote in _schema.quotes])
+
         if secret:
             _result.update({'user': _schema.user,
                             'passwd': _schema.passwd,
@@ -358,7 +363,7 @@ class DatabaseManagerBase(object):
             squery = squery.options(joinedload(GopSchema.quotes, innerjoin=False))
             _schema = squery.one()
             if _schema.quotes:
-                if not unquotes == set([_quote.quote_id for _quote in _schema.quotes]):
+                if not (unquotes == set([_quote.quote_id for _quote in _schema.quotes])):
                     raise exceptions.AcceptableSchemaError('Schema in quote, can not be delete')
             with self._delete_schema(session, _database, _schema, **kwargs) as address:
                 host = address[0]
