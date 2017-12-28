@@ -241,6 +241,13 @@ class Application(AppEndpointBase):
 
         def _port_notity():
             """notify port bond"""
+            _timeout = timeout if timeout else 30
+            overtime = int(time.time()) + _timeout
+            while entity not in self.konwn_database:
+                if int(time.time()) > overtime:
+                    LOG.error('Fail allocate port %d for %s.%d' % (ports[0], common.DB, entity))
+                    return
+                eventlet.sleep(1)
             self.client.ports_add(agent_id=self.manager.agent_id,
                                   endpoint=common.DB, entity=entity, ports=ports)
 

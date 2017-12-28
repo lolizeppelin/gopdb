@@ -150,6 +150,10 @@ class DatabaseManager(DatabaseManagerBase):
         """delete schema intance on reflection_id"""
         req = kwargs.pop('req')
         local_ip, port = self._get_entity(req, int(database.reflection_id))
+        if port <= 0:
+            raise exceptions.AcceptableDbError('Can not find Database port, not init finished')
+        if not local_ip:
+            raise exceptions.AcceptableDbError('Database agent is offline now')
         engine = create_engine(connformater % dict(user=database.user, passwd=database.passwd,
                                                    schema=schema, host=local_ip, port=port),
                                thread_checkin=False, poolclass=NullPool)
