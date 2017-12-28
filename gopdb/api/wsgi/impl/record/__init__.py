@@ -153,12 +153,12 @@ class DatabaseManager(DatabaseManagerBase):
         port = _record.port
         if database.passwd:
             connection = connformater % dict(user=database.user, passwd=database.passwd,
-                                             schema=schema,
+                                             schema=schema.schema,
                                              host=host, port=port)
             engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
             dropauths = None
             if schema.user != database.user:
-                dropauths = privilegeutils.mysql_privileges(schema)
+                dropauths = privilegeutils.mysql_privileges(schema.schema)
             utils.drop_schema(engine, dropauths)
         yield host, port
 

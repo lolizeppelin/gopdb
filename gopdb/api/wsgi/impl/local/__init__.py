@@ -155,11 +155,11 @@ class DatabaseManager(DatabaseManagerBase):
         if not local_ip:
             raise exceptions.AcceptableDbError('Database agent is offline now')
         engine = create_engine(connformater % dict(user=database.user, passwd=database.passwd,
-                                                   schema=schema, host=local_ip, port=port),
+                                                   schema=schema.schema, host=local_ip, port=port),
                                thread_checkin=False, poolclass=NullPool)
         dropauths = None
         if schema.user != database.user:
-            dropauths = privilegeutils.mysql_privileges(schema)
+            dropauths = privilegeutils.mysql_privileges(schema.schema)
         utils.drop_schema(engine, dropauths)
         yield local_ip, port
 
