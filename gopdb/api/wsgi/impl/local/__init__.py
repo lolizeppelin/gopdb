@@ -159,7 +159,7 @@ class DatabaseManager(DatabaseManagerBase):
                                thread_checkin=False, poolclass=NullPool)
         dropauths = None
         if schema.user != database.user:
-            dropauths = privilegeutils.mysql_privileges(schema.schema)
+            dropauths = privilegeutils.mysql_privileges(schema)
         utils.drop_schema(engine, dropauths)
         yield local_ip, port
 

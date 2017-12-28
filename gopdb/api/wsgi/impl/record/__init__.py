@@ -158,7 +158,7 @@ class DatabaseManager(DatabaseManagerBase):
             engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
             dropauths = None
             if schema.user != database.user:
-                dropauths = privilegeutils.mysql_privileges(schema.schema)
+                dropauths = privilegeutils.mysql_privileges(schema)
             utils.drop_schema(engine, dropauths)
         yield host, port
 
