@@ -1,6 +1,13 @@
 import abc
-
 import six
+from sqlalchemy.orm import joinedload
+from sqlalchemy.sql import and_
+
+from simpleutil.utils import argutils
+
+from simpleservice.ormdb.api import model_count_with_key
+from simpleservice.ormdb.api import model_query
+
 
 from gopdb import common
 from gopdb.api import endpoint_session
@@ -10,16 +17,27 @@ from gopdb.models import GopDatabase
 from gopdb.models import GopSalveRelation
 from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
-from simpleservice.ormdb.api import model_count_with_key
-from simpleservice.ormdb.api import model_query
-from sqlalchemy.orm import joinedload
-from sqlalchemy.sql import and_
+
 
 
 @six.add_metaclass(abc.ABCMeta)
 class DatabaseManagerBase(object):
 
     # ----------database action-------------
+
+    def select_database(self, **kwargs):
+        affinitys = argutils.map_with(kwargs.pop('affinitys'), int)
+        dbtype = kwargs.pop('dbtype', 'mysql')
+        session = endpoint_session(readonly=True)
+        query = model_query(session, GopDatabase, filter=and_(GopDatabase.status == common.OK,
+                                                              GopDatabase.dbtype == dbtype,
+                                                              GopDatabase.affinity.in_(affinitys)))
+        query.options(joinedload(GopDatabase.schemas, innerjoin=False))
+        return self._select_database(query, dbtype, **kwargs)
+
+    @abc.abstractmethod
+    def _select_database(self, query, dbtype, **kwargs):
+        """select database"""
 
     def reflect_database(self, **kwargs):
         session = endpoint_session(readonly=True)

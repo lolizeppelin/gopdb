@@ -4,6 +4,7 @@ from sqlalchemy.pool import NullPool
 
 from simpleutil.utils import argutils
 from simpleutil.utils import attributes
+from simpleutil.common.exceptions import InvalidArgument
 
 from simpleservice.ormdb.api import model_query
 from simpleservice.ormdb.argformater import connformater
@@ -27,6 +28,25 @@ class DatabaseManager(DatabaseManagerBase):
         records = argutils.map_with(records, str)
         filter = GopDatabase.reflection_id.in_(records)
         yield 'record_id', filter
+
+    def _select_database(self, query, dbtype, **kwargs):
+        query = query.filter(impl='record')
+        affinitys = {}
+        for _database in query:
+            try:
+                affinitys[_database.affinity].append(_database)
+            except KeyError:
+                affinitys[_database.affinity] = [_database]
+        if not affinitys:
+            raise InvalidArgument('No record database found')
+        result = []
+        for affinity in affinitys:
+            result.append(dict(affinity=affinity,
+                               databases=[_database.database_id
+                                          for _database in sorted(affinitys[affinity],
+                                                                  key=lambda x: len(x.schemas))]
+                               ))
+        return result
 
     @contextlib.contextmanager
     def _show_database(self, session, database, **kwargs):

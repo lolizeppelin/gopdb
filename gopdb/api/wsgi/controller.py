@@ -1,5 +1,5 @@
 import re
-
+import eventlet
 import webob.exc
 
 from sqlalchemy.orm import joinedload
@@ -21,6 +21,7 @@ from goperation.manager.exceptions import CacheStoneError
 from goperation.manager.utils import resultutils
 from goperation.manager.wsgi.contorller import BaseContorller
 from goperation.manager.wsgi.entity.controller import EntityReuest
+from goperation.manager.wsgi.endpoint.controller import EndpointReuest
 from goperation.manager.wsgi.exceptions import RpcPrepareError
 from goperation.manager.wsgi.exceptions import RpcResultError
 
@@ -52,6 +53,7 @@ FAULT_MAP = {InvalidArgument: webob.exc.HTTPClientError,
 MANAGERCACHE = {}
 
 entity_controller = EntityReuest()
+endpoint_controller = EndpointReuest()
 
 
 def _impl(database_id):
@@ -78,9 +80,11 @@ class DatabaseReuest(BaseContorller):
         reflect_list = dbmanager.reflect_database(**body)
         return resultutils.results(result='reflect database success', data=reflect_list)
 
-    def select(self, req, body=None):
+    def select(self, req, impl, body=None):
         body = body or {}
-        raise NotImplementedError
+        dbmanager = utils.impl_cls('wsgi', impl)
+        dbresult = dbmanager.select_database(**body)
+        return resultutils.results(result='create database success', data=dbresult)
 
     def index(self, req, body=None):
         body = body or {}
@@ -161,6 +165,8 @@ class DatabaseReuest(BaseContorller):
             if body.get('dbversion'):
                 updata.setdefault('dbversion', body.get('dbversion'))
             count = query.update(updata)
+            if not count:
+                LOG.warning('Update not match, no database has been updated')
         return resultutils.results(result='Update %s database success' % database_id)
 
     def delete(self, req, database_id, body=None):

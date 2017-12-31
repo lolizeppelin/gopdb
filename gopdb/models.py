@@ -73,7 +73,7 @@ class GopDatabase(TableBase):
                             autoincrement=True)
     #  local, record, cloud.aliyun, cloud.qcloud
     impl = sa.Column(VARCHAR(64), default=None, nullable=False)
-    # database type
+    # database type, mysql or redis
     dbtype = sa.Column(VARCHAR(64), default='mysql', nullable=False)
     dbversion = sa.Column(VARCHAR(64), default=None, nullable=True)
     reflection_id = sa.Column(VARCHAR(128), nullable=False)
@@ -91,6 +91,7 @@ class GopDatabase(TableBase):
     quotes = orm.relationship(SchemaQuote, backref='database',
                               lazy='select', cascade='delete,delete-orphan')
     __table_args__ = (
+        sa.Index('impl_index', impl),
         sa.UniqueConstraint('impl', 'reflection_id', name='unique_reflection'),
         InnoDBTableBase.__table_args__
     )

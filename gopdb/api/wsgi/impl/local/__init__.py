@@ -1,8 +1,10 @@
+import eventlet
 import contextlib
 from sqlalchemy.pool import NullPool
 
 from simpleutil.utils import uuidutils
 from simpleutil.utils import argutils
+from simpleutil.common.exceptions import InvalidArgument
 from simpleutil.log import log as logging
 from simpleservice.ormdb.argformater import connformater
 from simpleservice.ormdb.engines import create_engine
@@ -36,6 +38,66 @@ class DatabaseManager(DatabaseManagerBase):
         else:
             local_ip = agent_attributes.get('local_ip')
         return local_ip, port
+
+    def _select_database(self, query, dbtype, **kwargs):
+
+        disk = kwargs.pop('disk', 2000)
+        free = kwargs.pop('memory', 300)
+        zone = kwargs.pop('zone', 'all')
+        cpu = kwargs.pop('cpu', '2')
+        includes = ['zone=%s' % zone,
+                    'attributes.%s!=None' % dbtype,
+                    'disk>=%d' % disk, 'free>=%d' % free, 'cpu>=%d' % cpu]
+
+        weighters = [{'iowait': 3},
+                     {'cputime': 5},
+                     {'free': 200},
+                     {'cpu': -1},
+                     {'left': -300},
+                     {'process': None}]
+
+        def _chioces():
+            return entity_controller.chioces(common.DB, includes, weighters)
+
+        chioces = eventlet.spawn(_chioces)
+        entitys = set()
+        query = query.filter(impl='locle')
+        affinitys = {}
+        for _database in query:
+            entitys.add(int(_database.reflection_id))
+            # entitys[int(_database.reflection_id)] = _database.database_id
+            try:
+                affinitys[_database.affinity].append(_database)
+            except KeyError:
+                affinitys[_database.affinity] = [_database]
+        if not affinitys:
+            raise InvalidArgument('No local database found')
+
+        agents = chioces.wait()
+        _agents = {}
+        for index, agent_id in enumerate(agents):
+            _agents[agent_id] = index
+        if not agents:
+            raise InvalidArgument('No local agents found for database')
+
+        emaps = entity_controller.shows(common.DB, entitys=entitys, agents=agents,
+                                        ports=False, attributes=False)
+
+        result = []
+        def _weight(database):
+            sorts = []
+            try:
+                sorts.append(_agents[emaps[int(database.reflection_id)]])
+            except KeyError:
+                raise InvalidArgument('No local agents found for entity %s' % database.reflection_id)
+            sorts.append(len(database.schemas))
+
+        for affinity in affinitys:
+            result.append(dict(affinity=affinity,
+                               databases=[_database.database_id
+                                          for _database in sorted(affinitys[affinity], key=_weight)]
+                               ))
+        return result
 
     @contextlib.contextmanager
     def _reflect_database(self, session, **kwargs):
