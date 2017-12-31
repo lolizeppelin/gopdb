@@ -39,7 +39,7 @@ class DatabaseManager(DatabaseManagerBase):
             local_ip = agent_attributes.get('local_ip')
         return local_ip, port
 
-    def _select_database(self, query, dbtype, **kwargs):
+    def _select_database(self, session, query, dbtype, **kwargs):
 
         disk = kwargs.pop('disk', 2000)
         free = kwargs.pop('memory', 300)

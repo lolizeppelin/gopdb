@@ -29,10 +29,19 @@ class DatabaseManager(DatabaseManagerBase):
         filter = GopDatabase.reflection_id.in_(records)
         yield 'record_id', filter
 
-    def _select_database(self, query, dbtype, **kwargs):
+    def _select_database(self, session, query, dbtype, **kwargs):
+        zone = kwargs.get('zone', 'all')
         query = query.filter(impl='record')
         affinitys = {}
+        rquery = model_query(session, RecordDatabase, filter=RecordDatabase.zone == zone)
+        includes = set()
+        for r in rquery:
+            r.add(r.record_id)
+        if not includes:
+            raise InvalidArgument('No record database found with zone %s' % zone)
         for _database in query:
+            if int(_database.reflection_id) not in includes:
+                continue
             try:
                 affinitys[_database.affinity].append(_database)
             except KeyError:
@@ -57,11 +66,12 @@ class DatabaseManager(DatabaseManagerBase):
 
     @contextlib.contextmanager
     def _create_database(self, session, database, **kwargs):
+        zone = kwargs.get('zone', 'all')
         host = attributes.validators['type:hostname_or_ip'](kwargs.get('host'))
         port = attributes.validators['type:port'](kwargs.get('port'))
         extinfo = kwargs.get('extinfo')
         desc = kwargs.get('desc')
-        _record = RecordDatabase(host=host, port=port, extinfo=extinfo)
+        _record = RecordDatabase(host=host, zone=zone, port=port, extinfo=extinfo)
         session.add(_record)
         session.flush()
         database.impl = 'record'

@@ -99,6 +99,7 @@ class GopDatabase(TableBase):
 
 class RecordDatabase(TableBase):
     record_id = sa.Column(INTEGER(unsigned=True), nullable=False, primary_key=True, autoincrement=True)
+    zone = sa.Column(VARCHAR(32), nullable=False)
     host = sa.Column(VARCHAR(200), default=None, nullable=False)
     port = sa.Column(SMALLINT(unsigned=True), default=3306, nullable=False)
     extinfo = sa.Column(BLOB, nullable=True, default=None)
@@ -110,6 +111,7 @@ class RecordDatabase(TableBase):
 
 class CloudDatabase(TableBase):
     intance_id = sa.Column(VARCHAR(128), nullable=False, primary_key=True)
+    zone = sa.Column(VARCHAR(32), nullable=False)
     host = sa.Column(VARCHAR(200), default=None, nullable=False)
     port = sa.Column(SMALLINT(unsigned=True), default=3306, nullable=False)
     extinfo = sa.Column(BLOB, nullable=True, default=None)

@@ -24,7 +24,6 @@ from gopdb.models import SchemaQuote
 class DatabaseManagerBase(object):
 
     # ----------database action-------------
-
     def select_database(self, **kwargs):
         affinitys = argutils.map_with(kwargs.pop('affinitys'), int)
         dbtype = kwargs.pop('dbtype', 'mysql')
@@ -33,10 +32,10 @@ class DatabaseManagerBase(object):
                                                               GopDatabase.dbtype == dbtype,
                                                               GopDatabase.affinity.in_(affinitys)))
         query.options(joinedload(GopDatabase.schemas, innerjoin=False))
-        return self._select_database(query, dbtype, **kwargs)
+        return self._select_database(session, query, dbtype, **kwargs)
 
     @abc.abstractmethod
-    def _select_database(self, query, dbtype, **kwargs):
+    def _select_database(self, session, query, dbtype, **kwargs):
         """select database"""
 
     def reflect_database(self, **kwargs):
