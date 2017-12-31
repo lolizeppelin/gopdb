@@ -1,12 +1,53 @@
+import rpm
 import psutil
 from simpleutil.utils import importutils
 from simpleutil.utils import systemutils
 
 import goperation
 
-IMPLMAP = {}
+from gopdb import common
 
+IMPLMAP = {}
 EXECUTABLEMAPS = {}
+
+
+def mysql_version():
+    ts = rpm.ts()
+    mi = ts.dbMatch(rpm.RPMTAG_PROVIDES, 'mysql-server')
+    try:
+        if not mi:
+            return None
+        for hdr in mi:
+            # for _file in h[rpm.RPMTAG_FILENAMES]:
+            #    print _file
+            name = hdr[rpm.RPMTAG_NAME].lower()
+            version = hdr[rpm.RPMTAG_VERSION]
+            if 'mariadb' in name:
+                if version >= '10.0.0':
+                    return '5.6.0'
+                return version
+            return version
+    finally:
+        del mi
+        ts.closeDB()
+
+def redis_version():
+    ts = rpm.ts()
+    mi = ts.dbMatch(rpm.RPMTAG_PROVIDES, 'redis')
+    try:
+        if not mi:
+            return None
+        for hdr in mi:
+            version = hdr[rpm.RPMTAG_VERSION]
+            return version
+    finally:
+        del mi
+        ts.closeDB()
+
+
+common.VERSIONMAP.setdefault('mysql', mysql_version())
+common.VERSIONMAP.setdefault('redis', redis_version())
+
 
 try:
     EXECUTABLEMAPS.setdefault('mysql', systemutils.find_executable('mysqld'))

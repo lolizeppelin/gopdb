@@ -96,6 +96,10 @@ class Application(AppEndpointBase):
     def entity_group(self, entity):
         return 'gopdb'
 
+    def pre_start(self, external_objects):
+        super(AppEndpointBase, self).pre_start(external_objects)
+        external_objects.update(common.VERSIONMAP)
+
     def post_start(self):
         super(Application, self).post_start()
         pids = utils.find_process()
@@ -345,7 +349,6 @@ class Application(AppEndpointBase):
         dbmanager = utils.impl_cls('rpc', dbtype)
         p = self._entity_process(entity)
         p.terminal()
-
 
     def rpc_status_entity(self, ctxt, entity, **kwargs):
         p = self._entity_process(entity)
