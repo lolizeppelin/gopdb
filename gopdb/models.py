@@ -105,6 +105,7 @@ class RecordDatabase(TableBase):
     port = sa.Column(SMALLINT(unsigned=True), default=3306, nullable=False)
     extinfo = sa.Column(BLOB, nullable=True, default=None)
     __table_args__ = (
+        sa.Index('izone_index', zone),
         sa.UniqueConstraint('host', 'port', name='unique_record'),
         InnoDBTableBase.__table_args__
     )
@@ -117,6 +118,7 @@ class CloudDatabase(TableBase):
     port = sa.Column(SMALLINT(unsigned=True), default=3306, nullable=False)
     extinfo = sa.Column(BLOB, nullable=True, default=None)
     __table_args__ = (
+        sa.Index('izone_index', zone),
         sa.UniqueConstraint('host', 'port', name='unique_intance'),
         InnoDBTableBase.__table_args__
     )
