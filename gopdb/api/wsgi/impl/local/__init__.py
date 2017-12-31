@@ -61,7 +61,7 @@ class DatabaseManager(DatabaseManagerBase):
 
         chioces = eventlet.spawn(_chioces)
         entitys = set()
-        query = query.filter(impl='locle')
+        query = query.filter(impl='local')
         affinitys = {}
         for _database in query:
             entitys.add(int(_database.reflection_id))
