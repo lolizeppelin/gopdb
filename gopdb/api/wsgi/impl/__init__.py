@@ -2,6 +2,7 @@ import abc
 import six
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import and_
+from sqlalchemy.sql import or_
 
 from simpleutil.utils import argutils
 
@@ -25,14 +26,24 @@ class DatabaseManagerBase(object):
 
     # ----------database action-------------
     def select_database(self, **kwargs):
-        affinitys = argutils.map_with(kwargs.pop('affinitys'), int)
         dbtype = kwargs.pop('dbtype', 'mysql')
+        filters = [GopDatabase.status == common.OK, GopDatabase.dbtype == dbtype]
+        affinitys = kwargs.get('affinitys')
+        if affinitys:
+            affinitys = argutils.map_with(affinitys, int)
+            ors = []
+            for affinity in affinitys:
+                ors.append(GopDatabase.affinity.op('&')(affinity) > 0)
+            if len(ors) > 1:
+                filters.append(or_(*ors))
+            else:
+                filters.append(ors[0])
         session = endpoint_session(readonly=True)
-        query = model_query(session, GopDatabase, filter=and_(GopDatabase.status == common.OK,
-                                                              GopDatabase.dbtype == dbtype,
-                                                              GopDatabase.affinity.in_(affinitys)))
+        query = model_query(session, GopDatabase, filter=and_(*filters))
         query.options(joinedload(GopDatabase.schemas, innerjoin=False))
-        return self._select_database(session, query, dbtype, **kwargs)
+        results = self._select_database(session, query, dbtype, **kwargs)
+        results.sort(key=lambda x: x['affinity'])
+        return results
 
     @abc.abstractmethod
     def _select_database(self, session, query, dbtype, **kwargs):

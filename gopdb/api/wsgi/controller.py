@@ -1,5 +1,4 @@
 import re
-import eventlet
 import webob.exc
 
 from sqlalchemy.orm import joinedload
