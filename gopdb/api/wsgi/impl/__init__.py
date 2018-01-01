@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 import abc
 import six
 from sqlalchemy.orm import joinedload
@@ -32,6 +33,7 @@ class DatabaseManagerBase(object):
         if affinitys:
             affinitys = argutils.map_with(affinitys, int)
             ors = []
+            # 通过位运算匹配亲和性
             for affinity in affinitys:
                 ors.append(GopDatabase.affinity.op('&')(affinity) > 0)
             if len(ors) > 1:
@@ -42,6 +44,8 @@ class DatabaseManagerBase(object):
         query = model_query(session, GopDatabase, filter=and_(*filters))
         query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         results = self._select_database(session, query, dbtype, **kwargs)
+        # 结果按照亲和性从小到大排序
+        # 亲和性数值越大,匹配范围越广
         results.sort(key=lambda x: x['affinity'])
         return results
 

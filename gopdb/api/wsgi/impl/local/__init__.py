@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 import eventlet
 import contextlib
 from sqlalchemy.pool import NullPool
@@ -58,14 +59,15 @@ class DatabaseManager(DatabaseManagerBase):
 
         def _chioces():
             return entity_controller.chioces(common.DB, includes, weighters)
-
+        # 异步获取符合条件的agents排序
         chioces = eventlet.spawn(_chioces)
         entitys = set()
         query = query.filter(impl='local')
+        # 亲和性字典
         affinitys = {}
+        # 查询数据库,按照不同亲和性防止到亲和性字典
         for _database in query:
             entitys.add(int(_database.reflection_id))
-            # entitys[int(_database.reflection_id)] = _database.database_id
             try:
                 affinitys[_database.affinity].append(_database)
             except KeyError:
@@ -74,6 +76,7 @@ class DatabaseManager(DatabaseManagerBase):
             raise InvalidArgument('No local database found')
 
         agents = chioces.wait()
+        # agent排序结果放入字典中方便后面调用
         _agents = {}
         for index, agent_id in enumerate(agents):
             _agents[agent_id] = index
@@ -85,16 +88,20 @@ class DatabaseManager(DatabaseManagerBase):
 
         result = []
         def _weight(database):
-            sorts = []
+            # 排序的key列表
+            sortkeys = []
             try:
-                sorts.append(_agents[emaps[int(database.reflection_id)]])
+                # agent的排序结果
+                sortkeys.append(_agents[emaps[int(database.reflection_id)]])
             except KeyError:
                 raise InvalidArgument('No local agents found for entity %s' % database.reflection_id)
-            sorts.append(len(database.schemas))
+            # schemas数量
+            sortkeys.append(len(database.schemas))
 
         for affinity in affinitys:
             result.append(dict(affinity=affinity,
                                databases=[_database.database_id
+                                          # 数据库按照排序规则排序
                                           for _database in sorted(affinitys[affinity], key=_weight)]
                                ))
         return result
