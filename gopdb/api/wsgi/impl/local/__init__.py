@@ -31,13 +31,11 @@ class DatabaseManager(DatabaseManagerBase):
         _entity = entity_controller.show(req=req, entity=entity,
                                          endpoint=common.DB, body={'ports': True})['data'][0]
         port = _entity['ports'][0] if _entity['ports'] else -1
-        agent_attributes = _entity['attributes']
-        # agent_attributes = entity_controller.agent_attributes(agent_id)
-        if not agent_attributes:
+        metadata = _entity['metadata']
+        if not metadata:
             local_ip = 'unkonwn'
-            # raise exceptions.AcceptableDbError('Agent %d not online or not exist' % agent_id)
         else:
-            local_ip = agent_attributes.get('local_ip')
+            local_ip = metadata.get('local_ip')
         return local_ip, port
 
     def _select_database(self, session, query, dbtype, **kwargs):
@@ -47,7 +45,7 @@ class DatabaseManager(DatabaseManagerBase):
         zone = kwargs.pop('zone', 'all')
         cpu = kwargs.pop('cpu', '2')
         includes = ['zone=%s' % zone,
-                    'attributes.%s!=None' % dbtype,
+                    'metadata.%s!=None' % dbtype,
                     'disk>=%d' % disk, 'free>=%d' % free, 'cpu>=%d' % cpu]
 
         weighters = [{'iowait': 3},
@@ -84,7 +82,7 @@ class DatabaseManager(DatabaseManagerBase):
             raise InvalidArgument('No local agents found for database')
 
         emaps = entity_controller.shows(common.DB, entitys=entitys, agents=agents,
-                                        ports=False, attributes=False)
+                                        ports=False, metadata=False)
 
         result = []
         def _weight(database):
