@@ -41,13 +41,16 @@ class DatabaseManager(DatabaseManagerBase):
     def _select_database(self, session, query, dbtype, **kwargs):
 
         disk = kwargs.pop('disk', 2000)
-        free = kwargs.pop('memory', 300)
+        free = kwargs.pop('memory', 1000)
         zone = kwargs.pop('zone', 'all')
         cpu = kwargs.pop('cpu', '2')
-        includes = ['zone=%s' % zone,
+        # 包含规则
+        includes = ['metadata.zone=%s' % zone,
+                    'metadata.agent_type=application',
                     'metadata.%s!=None' % dbtype,
+                    'metadata.%s>=5.5' % dbtype,
                     'disk>=%d' % disk, 'free>=%d' % free, 'cpu>=%d' % cpu]
-
+        # 排序规则
         weighters = [{'iowait': 3},
                      {'cputime': 5},
                      {'free': 200},
