@@ -102,7 +102,7 @@ class DatabaseManager(DatabaseManagerBase):
         for affinity in affinitys:
             result.append(dict(affinity=affinity,
                                databases=[_database.database_id
-                                          # 数据库按照排序规则排序
+                                          # 数据库按照agent性能排序规则排序
                                           for _database in sorted(affinitys[affinity], key=_weight)]
                                ))
         return result
