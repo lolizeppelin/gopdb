@@ -227,7 +227,7 @@ class DatabaseManager(DatabaseManagerBase):
     def install(self, cfgfile, postrun, timeout, **kwargs):
         """create database intance"""
         if not os.path.exists(cfgfile):
-            raise
+            raise ValueError('Config file not exist')
         args = [SH, MYSQLINSTALL, '--defaults-file=%s' % cfgfile]
         args.extend(self.base_opts)
         logfile = kwargs.get('logfile')

@@ -162,8 +162,6 @@ class DatabaseManager(DatabaseManagerBase):
                      src_database, src_schema,
                      dst_database, dst_schema,
                      auths, **kwargs):
-        if not dst_database.passwd:
-            raise
         src_record = model_query(session, RecordDatabase,
                                  filter=RecordDatabase.record_id == int(src_database.reflection_id)).one()
         dst_record = model_query(session, RecordDatabase,

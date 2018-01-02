@@ -331,12 +331,11 @@ class Application(AppEndpointBase):
         dbtype = kwargs.pop('dbtype')
         dbmanager = utils.impl_cls('rpc', dbtype)
         cfgfile = self._db_conf(entity, dbtype)
-        with self.lock(entity, timeout=3):
-            if self._entity_process(entity):
-                raise
-            dbmanager.start(cfgfile)
-            eventlet.sleep(0.5)
         p = self._entity_process(entity)
+        with self.lock(entity, timeout=3):
+            if not p:
+                dbmanager.start(cfgfile)
+                eventlet.sleep(0.5)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
                                           result='start entity success',

@@ -357,21 +357,21 @@ class DatabaseManagerBase(object):
         for _database in query.all():
             if _database.database_id == src_database_id:
                 if not _database.is_master:
-                    raise
+                    raise exceptions.AcceptableDbError('Source database is not master')
                 if not _database.passwd:
-                    raise
+                    raise exceptions.AcceptableDbError('Source database has no passwd, can not copy')
                 schemas = [_schema.name for _schema in _database.schemas]
                 if src_schema not in schemas:
-                    raise
+                    raise exceptions.AcceptableSchemaError('Source schemas %s not exist' % src_schema)
                 src_database = _database
             elif _database.database_id == dst_database_id:
                 if not _database.is_master:
-                    raise
+                    raise exceptions.AcceptableDbError('Destination database is not master')
                 if not _database.passwd:
-                    raise
+                    raise exceptions.AcceptableDbError('Destination database has no passwd, can not copy')
                 schemas = [_schema.name for _schema in _database.schemas]
                 if dst_schema in schemas:
-                    raise
+                    raise exceptions.AcceptableSchemaError('Destination schemas %s alreday exist' % dst_schema)
                 dst_database = _database
         if not src_database or not dst_database:
             raise
