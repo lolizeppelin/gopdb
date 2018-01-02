@@ -178,11 +178,19 @@ class DatabaseReuest(BaseContorller):
 
     def start(self, req, database_id, body=None):
         body = body or {}
-        raise NotImplementedError
+        kwargs = dict(req=req)
+        kwargs.update(body)
+        dbmanager = _impl(database_id)
+        dbresult = dbmanager.start_database(database_id, **kwargs)
+        return resultutils.results(result='start database success', data=[dbresult, ])
 
     def stop(self, req, database_id, body=None):
         body = body or {}
-        raise NotImplementedError
+        kwargs = dict(req=req)
+        kwargs.update(body)
+        dbmanager = _impl(database_id)
+        dbresult = dbmanager.stop_database(database_id, **kwargs)
+        return resultutils.results(result='stop database success', data=[dbresult, ])
 
     def status(self, req, database_id, body=None):
         body = body or {}

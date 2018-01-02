@@ -11,7 +11,13 @@ from simpleservice.ormdb.argformater import connformater
 from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
 
+
+from goperation.manager.utils import targetutils
+from goperation.manager.api import get_client
+from goperation.manager.api import rpcfinishtime
+from goperation.manager import common as manager_common
 from goperation.manager.wsgi.entity.controller import EntityReuest
+from goperation.manager.wsgi.exceptions import RpcResultError
 
 from gopdb import common
 from gopdb.api.wsgi.impl import DatabaseManagerBase
@@ -26,6 +32,7 @@ entity_controller = EntityReuest()
 
 
 class DatabaseManager(DatabaseManagerBase):
+
 
     def _get_entity(self, req, entity):
         _entity = entity_controller.show(req=req, entity=entity,
@@ -66,7 +73,7 @@ class DatabaseManager(DatabaseManagerBase):
         query = query.filter(impl='local')
         # 亲和性字典
         affinitys = {}
-        # 查询数据库,按照不同亲和性防止到亲和性字典
+        # 查询数据库,按照不同亲和性放置到亲和性字典
         for _database in query:
             entitys.add(int(_database.reflection_id))
             try:
@@ -166,6 +173,49 @@ class DatabaseManager(DatabaseManagerBase):
             for master in masters:
                 master_ip, master_port = self._get_entity(req, int(master.reflection_id))
                 privilegeutils.mysql_drop_replprivileges(master, slave, master_ip, master_port)
+
+    def _start_database(self, database, **kwargs):
+        req = kwargs.pop('req')
+        entity = int(database.reflection_id)
+        _entity =  entity_controller.show(req=req, entity=entity,
+                                          endpoint=common.DB, body={'ports': False})['data'][0]
+        agent_id = _entity['agent_id']
+        metadata = _entity['metadata']
+        target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                    metadata.get('host'))
+        target.namespace = common.DB
+        rpc = get_client()
+        rpc_ret = rpc.call(target, ctxt={'finishtime': rpcfinishtime(),
+                                            'agents': [agent_id, ]},
+                              msg={'method': 'start_entity', 'args': dict(entity=entity)})
+        if not rpc_ret:
+            raise RpcResultError('create entitys result is None')
+        if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+            raise RpcResultError('create entity fail %s' % rpc_ret.get('result'))
+        return rpc_ret
+
+    def _stop_database(self, database, **kwargs):
+        req = kwargs.pop('req')
+        entity = int(database.reflection_id)
+        _entity =  entity_controller.show(req=req, entity=entity,
+                                          endpoint=common.DB, body={'ports': False})['data'][0]
+        agent_id = _entity['agent_id']
+        metadata = _entity['metadata']
+        target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                    metadata.get('host'))
+        target.namespace = common.DB
+        rpc = get_client()
+        rpc_ret = rpc.call(target, ctxt={'finishtime': rpcfinishtime(),
+                                            'agents': [agent_id, ]},
+                              msg={'method': 'stop_entity', 'args': dict(entity=entity)})
+        if not rpc_ret:
+            raise RpcResultError('stop database entity result is None')
+        if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+            raise RpcResultError('stop database entity fail %s' % rpc_ret.get('result'))
+        return rpc_ret
+
+    def _status_database(self, database, **kwargs):
+        raise NotImplementedError
 
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):

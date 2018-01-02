@@ -10,7 +10,6 @@ from simpleutil.utils import argutils
 from simpleservice.ormdb.api import model_count_with_key
 from simpleservice.ormdb.api import model_query
 
-
 from gopdb import common
 from gopdb.api import endpoint_session
 from gopdb.api.wsgi.impl import exceptions
@@ -19,7 +18,6 @@ from gopdb.models import GopDatabase
 from gopdb.models import GopSalveRelation
 from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
-
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -213,6 +211,35 @@ class DatabaseManagerBase(object):
     def _delete_slave_database(self, session, slave, masters, **kwargs):
         """impl delete a slave database code"""
 
+    def start_database(self, database_id, **kwargs):
+        session = endpoint_session(readonly=True)
+        query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
+        _database = query.one()
+        if _database.status != common.OK:
+            raise exceptions.AcceptableDbError('Database is not OK now')
+        return self._start_database(_database, **kwargs)
+
+    @abc.abstractmethod
+    def _start_database(self, database, **kwargs):
+        """impl start a database code"""
+
+    def stop_database(self, database_id, **kwargs):
+        session = endpoint_session(readonly=True)
+        query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
+        _database = query.one()
+        return self._stop_database(_database, **kwargs)
+
+    @abc.abstractmethod
+    def _stop_database(self, database, **kwargs):
+        """impl stop a database code"""
+
+    def status_database(self, database_id, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def _status_database(self, database, **kwargs):
+        """impl status a database code"""
+
     # ----------schema action-------------
 
     def show_schema(self, database_id, schema, secret, **kwargs):
@@ -262,6 +289,7 @@ class DatabaseManagerBase(object):
         """create new schema intance on reflection_id"""
         auths = privilegeutils.mysql_privileges(auth)
         bond = kwargs.get('bond')
+        affinity = kwargs.get('affinity', None)
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
         query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
@@ -274,6 +302,8 @@ class DatabaseManagerBase(object):
                 raise exceptions.AcceptableDbError('Database is slave, can not create schema')
             if _database.status != common.OK:
                 raise exceptions.AcceptableDbError('Database is not OK now')
+            if affinity is not None and (_database.affinity & affinity) == 0:
+                raise exceptions.AcceptableDbError('Database affinity not match')
             schemas = [_schema.schema for _schema in _database.schemas]
             if schema in schemas:
                 raise exceptions.AcceptableDbError('Duplicate schema name Duplicate')

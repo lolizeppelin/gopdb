@@ -1,4 +1,5 @@
 import six
+import signal
 import os
 import eventlet
 import ConfigParser
@@ -204,6 +205,24 @@ class DatabaseManager(DatabaseManagerBase):
     def stop(self, cfgfile, postrun, timeout,
              **kwargs):
         """stop database intance"""
+        process = kwargs.pop('process', None)
+        config = self.config_cls.load(cfgfile)
+        pidifle = config.get('pid-file')
+        datadir = config.get('datadir')
+        user = config.get('user')
+        with open(pidifle, 'rb') as f:
+            _pid = int(f.read(4096).strip())
+            if process:
+                if _pid != process.pid:
+                    raise ValueError('Process pid not match pid file')
+            else:
+                process = psutil.Process(_pid)
+        cmdlines = process.cmdline()
+        if process.username() == user and '--datadir=%s' % datadir in cmdlines:
+            process.terminal()
+        else:
+            raise ValueError('Process user or cmdline not match')
+
 
     def install(self, cfgfile, postrun, timeout, **kwargs):
         """create database intance"""

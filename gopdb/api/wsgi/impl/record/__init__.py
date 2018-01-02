@@ -117,6 +117,18 @@ class DatabaseManager(DatabaseManagerBase):
         finally:
             del _masters[:]
 
+    def _start_database(self, database, **kwargs):
+        """impl start a database code"""
+        raise NotImplementedError
+
+    def _stop_database(self, database, **kwargs):
+        """impl stop a database code"""
+        raise NotImplementedError
+
+    def _status_database(self, database, **kwargs):
+        """impl status a database code"""
+        raise NotImplementedError
+
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):
         _record = model_query(session, RecordDatabase,

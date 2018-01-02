@@ -82,7 +82,7 @@ def quote_show(quote_id, body=None):
 # active_agent(agent_id=2)
 
 # index_test()
-# delete_test(database_id=39)
+# delete_test(database_id=40)
 # schema_delete_test(3)
 # quote_show(quote_id=1, body={'schema': True, 'database': True})
-create_local_test(2)
+create_local_test(1)
