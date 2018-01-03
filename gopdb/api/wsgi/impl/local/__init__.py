@@ -50,7 +50,7 @@ class DatabaseManager(DatabaseManagerBase):
         disk = kwargs.pop('disk', 2000)
         free = kwargs.pop('memory', 1000)
         zone = kwargs.pop('zone', 'all')
-        cpu = kwargs.pop('cpu', '2')
+        cpu = kwargs.pop('cpu', 2)
         # 包含规则
         includes = ['metadata.zone=%s' % zone,
                     'metadata.agent_type=application',
@@ -64,13 +64,14 @@ class DatabaseManager(DatabaseManagerBase):
                      {'cpu': -1},
                      {'left': -300},
                      {'process': None}]
+        result = []
 
         def _chioces():
             return entity_controller.chioces(common.DB, includes, weighters)
         # 异步获取符合条件的agents排序
         chioces = eventlet.spawn(_chioces)
         entitys = set()
-        query = query.filter(impl='local')
+        query = query.filter_by(impl='local')
         # 亲和性字典
         affinitys = {}
         # 查询数据库,按照不同亲和性放置到亲和性字典
@@ -81,9 +82,9 @@ class DatabaseManager(DatabaseManagerBase):
             except KeyError:
                 affinitys[_database.affinity] = [_database]
         if not affinitys:
-            raise InvalidArgument('No local database found')
+            LOG.info('No local database found')
+            return result
 
-        result = []
         agents = chioces.wait()
         if not agents:
             return result

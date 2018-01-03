@@ -31,7 +31,7 @@ class DatabaseManager(DatabaseManagerBase):
 
     def _select_database(self, session, query, dbtype, **kwargs):
         zone = kwargs.get('zone', 'all')
-        query = query.filter(impl='record')
+        query = query.filter_by(impl='record')
         affinitys = {}
         rquery = model_query(session, RecordDatabase, filter=RecordDatabase.zone == zone)
         includes = set()
