@@ -83,18 +83,17 @@ class DatabaseManager(DatabaseManagerBase):
         if not affinitys:
             raise InvalidArgument('No local database found')
 
+        result = []
         agents = chioces.wait()
+        if not agents:
+            return result
         # agent排序结果放入字典中方便后面调用
         _agents = {}
         for index, agent_id in enumerate(agents):
             _agents[agent_id] = index
-        if not agents:
-            raise InvalidArgument('No local agents found for database')
-
         emaps = entity_controller.shows(common.DB, entitys=entitys, agents=agents,
                                         ports=False, metadata=False)
 
-        result = []
         def _weight(database):
             # 排序的key列表
             sortkeys = []
@@ -135,7 +134,9 @@ class DatabaseManager(DatabaseManagerBase):
     def _create_database(self, session, database, **kwargs):
         req = kwargs.pop('req')
         agent_id = kwargs.pop('agent_id')
+        zone = kwargs.pop('zone', 'all')
         body = dict(dbtype=database.dbtype,
+                    zone=zone,
                     auth=dict(user=database.user, passwd=database.passwd))
         body.update(kwargs)
         entity = entity_controller.create(req=req,
