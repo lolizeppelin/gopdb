@@ -47,7 +47,7 @@ class GopSchema(TableBase):
     ro_user = sa.Column(VARCHAR(64), default=None, nullable=False)
     ro_passwd = sa.Column(VARCHAR(128), default=None, nullable=False)
     source = sa.Column(VARCHAR(64), default=None, nullable=False)
-    charcter_set = sa.Column(VARCHAR(64), default=None, nullable=True)
+    character_set = sa.Column(VARCHAR(64), default=None, nullable=True)
     collation_type = sa.Column(VARCHAR(64), default=None, nullable=True)
     desc = sa.Column(VARCHAR(256), nullable=True)
     quotes = orm.relationship(SchemaQuote, backref='schema',

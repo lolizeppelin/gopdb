@@ -63,7 +63,7 @@ def schema_create_test(database_id):
                                 body={'auth': {'user': 'root', 'passwd': '1111',
                                                'ro_user': 'selecter', 'ro_passwd': '111',
                                                'source': '%'},
-                                      'options': {'charcter_set': 'utf8'},
+                                      'options': {'character_set': 'utf8'},
                                       'name': 'gamserver_db_3'})
 
 def schema_delete_test(database_id):

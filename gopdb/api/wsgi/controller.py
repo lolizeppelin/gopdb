@@ -217,7 +217,7 @@ class SchemaReuest(BaseContorller):
         'type': 'object',
         'properties':
             {
-                'charcter_set': {'type': 'string'},
+                'character_set': {'type': 'string'},
                 'collation_type': {'type': 'string'},
             }
     }

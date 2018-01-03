@@ -307,7 +307,7 @@ class DatabaseManagerBase(object):
             schemas = [_schema.schema for _schema in _database.schemas]
             if schema in schemas:
                 raise exceptions.AcceptableDbError('Duplicate schema name Duplicate')
-            options = options or {'charcter_set': 'utf8'}
+            options = options or {'character_set': 'utf8'}
             with self._create_schema(session, _database, schema, auths, options, **kwargs) as address:
                 gop_schema = GopSchema(schema=schema,
                                        database_id=_database.database_id,
@@ -316,7 +316,7 @@ class DatabaseManagerBase(object):
                                        ro_user=auth.get('ro_user'),
                                        ro_passwd=auth.get('ro_passwd'),
                                        source=auth.get('source'),
-                                       charcter_set=options.get('charcter_set'),
+                                       character_set=options.get('character_set'),
                                        collation_type=options.get('collation_type'))
                 session.add(gop_schema)
                 session.flush()
@@ -333,7 +333,7 @@ class DatabaseManagerBase(object):
                 port = address[1]
                 _result.setdefault('host', host)
                 _result.setdefault('port', port)
-                _result.setdefault('charcter_set', options.get('charcter_set'))
+                _result.setdefault('character_set', options.get('character_set'))
                 _result.setdefault('collation_type', options.get('collation_type'))
                 _result.setdefault('schema_id', gop_schema.schema_id)
                 _result.setdefault('schema', gop_schema.schema)
