@@ -87,23 +87,24 @@ class DatabaseManager(DatabaseManagerBase):
 
         agents = chioces.wait()
         if not agents:
+            LOG.info('No agent found for local database ')
             return result
         # agent排序结果放入字典中方便后面调用
         _agents = {}
         for index, agent_id in enumerate(agents):
             _agents[agent_id] = index
-        emaps = entity_controller.shows(common.DB, entitys=entitys, agents=agents,
+        emaps = entity_controller.shows(common.DB, entitys=entitys,
                                         ports=False, metadata=False)
-
         def _weight(database):
             # 排序的key列表
             sortkeys = []
             try:
-                # agent的排序结果
-                sortkeys.append(_agents[emaps[int(database.reflection_id)]])
+                # 按照agent的排序结果
+                entityinfo = emaps.get(int(database.reflection_id))
+                sortkeys.append(_agents[entityinfo.get('agent_id')])
             except KeyError:
                 raise InvalidArgument('No local agents found for entity %s' % database.reflection_id)
-            # schemas数量
+            # 按照schemas数量
             sortkeys.append(len(database.schemas))
 
         for affinity in affinitys:
