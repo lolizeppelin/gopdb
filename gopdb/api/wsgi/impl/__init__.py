@@ -156,7 +156,7 @@ class DatabaseManagerBase(object):
             if _database.schemas or _database.slaves:
                 raise exceptions.AcceptableDbError('can not delete database, slave or schema exist')
             if model_count_with_key(session, SchemaQuote.database_id,
-                                    filter=SchemaQuote.database_id == _database.database_id):
+                                    filter=SchemaQuote.qdatabase_id == _database.database_id):
                 raise exceptions.AcceptableDbError('Database in schema quote list')
             with self._delete_database(session, _database, **kwargs) as address:
                 host = address[0]
@@ -322,7 +322,7 @@ class DatabaseManagerBase(object):
                 session.flush()
                 if bond:
                     _quote = SchemaQuote(schema_id=gop_schema.schema_id,
-                                         database_id=_database.database_id,
+                                         qdatabase_id=_database.database_id,
                                          entity=bond.get('entity'),
                                          endpoint=bond.get('endpoint'),
                                          desc=bond.get('desc'))

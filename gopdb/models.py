@@ -23,7 +23,7 @@ class SchemaQuote(TableBase):
     quote_id = sa.Column(INTEGER(unsigned=True), nullable=False, primary_key=True, autoincrement=True)
     schema_id = sa.Column(sa.ForeignKey('gopschemas.schema_id', ondelete="CASCADE", onupdate='RESTRICT'),
                           nullable=False)
-    database_id = sa.Column(sa.ForeignKey('gopdatabases.database_id', ondelete="RESTRICT", onupdate='RESTRICT'),
+    qdatabase_id = sa.Column(sa.ForeignKey('gopdatabases.database_id', ondelete="RESTRICT", onupdate='RESTRICT'),
                             nullable=False)
     entity = sa.Column(INTEGER(unsigned=True), nullable=False)
     endpoint = sa.Column(VARCHAR(manager_common.MAX_ENDPOINT_NAME_SIZE),
@@ -31,7 +31,7 @@ class SchemaQuote(TableBase):
     desc = sa.Column(VARCHAR(256), nullable=True)
     __table_args__ = (
         sa.Index('schema_index', schema_id),
-        sa.Index('databaseindex', database_id),
+        sa.Index('databaseindex', qdatabase_id),
         sa.Index('entity_index', entity, endpoint),
         InnoDBTableBase.__table_args__
     )

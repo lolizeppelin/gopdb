@@ -20,6 +20,7 @@ class GopDBClient(GopHttpClientApi):
     schema_path_ex = '/gopdb/database/%s/schemas/%s/%s'
 
     quote_path = '/gopdb/quotes/%s'
+    quotes_path = '/gopdb/quotes'
 
     def __init__(self, httpclient):
         # self.endpoint = DB
@@ -203,6 +204,15 @@ class GopDBClient(GopHttpClientApi):
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='unquote %s fail:%d' %
                                                     (str(quote_id), results['resultcode']),
+                                            code=resp.status_code,
+                                            resone=results['result'])
+        return results
+
+    def quotes(self, endpoint, entitys):
+        resp, results = self.get(action=self.quotes_path, body=dict(endpoint=endpoint,
+                                                                       entitys=entitys))
+        if results['resultcode'] != common.RESULT_SUCCESS:
+            raise ServerExecuteRequestError(message='list quotes fail:%d' % results['resultcode'],
                                             code=resp.status_code,
                                             resone=results['result'])
         return results

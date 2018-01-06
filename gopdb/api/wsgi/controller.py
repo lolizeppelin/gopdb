@@ -10,6 +10,7 @@ from simpleutil.common.exceptions import InvalidArgument
 from simpleutil.log import log as logging
 from simpleutil.utils import jsonutils
 from simpleutil.utils import singleton
+from simpleutil.utils import argutils
 
 from simpleservice.ormdb.api import model_query
 from simpleservice.rpc.exceptions import AMQPDestinationNotFound
@@ -353,7 +354,7 @@ class SchemaReuest(BaseContorller):
                     quote_database_id = _database.slaves[0]
             schema_quote = SchemaQuote(quote_id=quote_id,
                                        schema_id=_schema.schema_id,
-                                       database_id=quote_database_id,
+                                       qdatabase_id=quote_database_id,
                                        entity=entity, endpoint=endpoint, desc=desc)
             session.add(schema_quote)
             session.flush()
@@ -361,7 +362,7 @@ class SchemaReuest(BaseContorller):
                                                                       schema_quote.schema_id),
                                    data=[dict(schema_id=schema_quote.schema_id,
                                               quote_id=schema_quote.quote_id,
-                                              database_id=database_id)])
+                                              qdatabase_id=database_id)])
 
     def unquote(self, req, quote_id, body=None):
         """schema unquote"""
@@ -375,6 +376,7 @@ class SchemaReuest(BaseContorller):
                                                                           schema_quote.schema_id,),
                                    data=[dict(quote_id=schema_quote.quote_id,
                                               schema_id=schema_quote.schema_id,
+                                              qdatabase_id=schema_quote.qdatabase_id,
                                               entity=schema_quote.entity,
                                               endpoint=schema_quote.endpoint)])
 
@@ -386,7 +388,7 @@ class SchemaReuest(BaseContorller):
         schema_quote = query.one()
         data = dict(quote_id=quote_id,
                     schema_id=schema_quote.schema_id,
-                    database_id=schema_quote.database_id,
+                    qdatabase_id=schema_quote.qdatabase_id,
                     entity=schema_quote.entity,
                     endpoint=schema_quote.endpoint,
                     )
@@ -403,3 +405,37 @@ class SchemaReuest(BaseContorller):
                                              dbtype=database.dbtype,
                                              dbversion=database.dbversion))
         return resultutils.results(result='get quote success', data=[data, ])
+
+    def quotes(self, req, body=None):
+        body = body or {}
+        session = endpoint_session(readonly=True)
+        endpoint = body.pop('endpoint')
+        entitys = argutils.map_to_int(body.pop('entitys'))
+
+        query = session.query(SchemaQuote.quote_id,
+                              SchemaQuote.schema_id,
+                              SchemaQuote.qdatabase_id,
+                              SchemaQuote.entity,
+                              SchemaQuote.endpoint,
+                              GopSchema.schema,
+                              GopSchema.user,
+                              GopSchema.passwd,
+                              GopSchema.ro_user,
+                              GopSchema.ro_passwd,
+                              GopSchema.character_set,
+                              GopSchema.collation_type,
+                              ).join(GopSchema, and_(GopSchema.schema_id == SchemaQuote.schema_id))
+        query.filter(and_(SchemaQuote.endpoint == endpoint,
+                          SchemaQuote.entity.in_(entitys)))
+        return resultutils.results(result='list quotes success', data=[dict(quote_id=quote.quote_id,
+                                                                            schema_id=quote.schema_id,
+                                                                            qdatabase_id=quote.qdatabase_id,
+                                                                            database_id=quote.database_id,
+                                                                            schema=quote.schema,
+                                                                            user=quote.user,
+                                                                            passwd=quote.passwd,
+                                                                            ro_user=quote.ro_user,
+                                                                            ro_passwd=quote.ro_passwd,
+                                                                            character_set=quote.character_set,
+                                                                            collation_type=quote.collation_type,
+                                                                            ) for quote in query])
