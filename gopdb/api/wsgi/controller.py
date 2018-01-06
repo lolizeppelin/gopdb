@@ -411,7 +411,6 @@ class SchemaReuest(BaseContorller):
         session = endpoint_session(readonly=True)
         endpoint = body.pop('endpoint')
         entitys = argutils.map_to_int(body.pop('entitys'))
-
         query = session.query(SchemaQuote.quote_id,
                               SchemaQuote.schema_id,
                               SchemaQuote.qdatabase_id,

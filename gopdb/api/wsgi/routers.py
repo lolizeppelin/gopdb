@@ -54,13 +54,13 @@ class Routers(router.RoutersBase):
         collection.member.link('bond', method='POST')
 
         self._add_resource(mapper, schema_controller,
-                           path='/%s/quotes' % common.DB,
-                           get_action='quotes')
-
-        self._add_resource(mapper, schema_controller,
                            path='/%s/quotes/{quote_id}' % common.DB,
                            get_action='quote')
 
         self._add_resource(mapper, schema_controller,
                            path='/%s/quotes/{quote_id}' % common.DB,
                            delete_action='unquote')
+
+        self._add_resource(mapper, schema_controller,
+                           path='/%s/quotes' % common.DB,
+                           get_action='quotes')
