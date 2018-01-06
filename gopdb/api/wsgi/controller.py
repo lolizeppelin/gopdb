@@ -29,6 +29,8 @@ from gopdb import common
 from gopdb import utils
 from gopdb.api import endpoint_session
 from gopdb.api.wsgi.impl import exceptions
+from gopdb.api.wsgi.impl import _impl
+from gopdb.api.wsgi.impl import _address
 from gopdb.models import GopDatabase
 from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
@@ -50,25 +52,8 @@ FAULT_MAP = {InvalidArgument: webob.exc.HTTPClientError,
              MultipleResultsFound: webob.exc.HTTPInternalServerError
              }
 
-MANAGERCACHE = {}
-
 entity_controller = EntityReuest()
 endpoint_controller = EndpointReuest()
-
-
-def _impl(database_id):
-    try:
-        return MANAGERCACHE[database_id]
-    except KeyError:
-        session = endpoint_session(readonly=True)
-        try:
-            database = model_query(session, GopDatabase, GopDatabase.database_id == database_id).one()
-            if database_id not in MANAGERCACHE:
-                dbmanager = utils.impl_cls('wsgi', database.impl)
-                MANAGERCACHE.setdefault(database_id, dbmanager)
-            return MANAGERCACHE[database_id]
-        finally:
-            session.close()
 
 
 @singleton.singleton
@@ -427,15 +412,24 @@ class SchemaReuest(BaseContorller):
                               ).join(GopSchema, and_(GopSchema.schema_id == SchemaQuote.schema_id))
         query.filter(and_(SchemaQuote.endpoint == endpoint,
                           SchemaQuote.entity.in_(entitys)))
-        return resultutils.results(result='list quotes success', data=[dict(quote_id=quote.quote_id,
-                                                                            schema_id=quote.schema_id,
-                                                                            qdatabase_id=quote.qdatabase_id,
-                                                                            database_id=quote.database_id,
-                                                                            schema=quote.schema,
-                                                                            user=quote.user,
-                                                                            passwd=quote.passwd,
-                                                                            ro_user=quote.ro_user,
-                                                                            ro_passwd=quote.ro_passwd,
-                                                                            character_set=quote.character_set,
-                                                                            collation_type=quote.collation_type,
-                                                                            ) for quote in query])
+        quotes = []
+        database_ids = set()
+        for quote in query:
+            database_ids.add(quote.qdatabase_id)
+            quotes.append(dict(quote_id=quote.quote_id,
+                               schema_id=quote.schema_id,
+                               qdatabase_id=quote.qdatabase_id,
+                               database_id=quote.database_id,
+                               schema=quote.schema,
+                               user=quote.user,
+                               passwd=quote.passwd,
+                               ro_user=quote.ro_user,
+                               ro_passwd=quote.ro_passwd,
+                               character_set=quote.character_set,
+                               collation_type=quote.collation_type))
+        # get all address
+        alladdress = _address(database_ids)
+        for quote in quotes:
+            quote.update(alladdress[quote.get('qdatabase_id')])
+
+        return resultutils.results(result='list quotes success', data=quotes)

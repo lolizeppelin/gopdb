@@ -33,7 +33,6 @@ entity_controller = EntityReuest()
 
 class DatabaseManager(DatabaseManagerBase):
 
-
     def _get_entity(self, req, entity):
         _entity = entity_controller.show(req=req, entity=entity,
                                          endpoint=common.DB, body={'ports': True})['data'][0]
@@ -95,6 +94,7 @@ class DatabaseManager(DatabaseManagerBase):
             _agents[agent_id] = index
         emaps = entity_controller.shows(common.DB, entitys=entitys,
                                         ports=False, metadata=False)
+
         def _weight(database):
             # 排序的key列表
             sortkeys = []
@@ -180,8 +180,8 @@ class DatabaseManager(DatabaseManagerBase):
     def _start_database(self, database, **kwargs):
         req = kwargs.pop('req')
         entity = int(database.reflection_id)
-        _entity =  entity_controller.show(req=req, entity=entity,
-                                          endpoint=common.DB, body={'ports': False})['data'][0]
+        _entity = entity_controller.show(req=req, entity=entity,
+                                         endpoint=common.DB, body={'ports': False})['data'][0]
         agent_id = _entity['agent_id']
         metadata = _entity['metadata']
         target = targetutils.target_agent_by_string(metadata.get('agent_type'),
@@ -189,8 +189,8 @@ class DatabaseManager(DatabaseManagerBase):
         target.namespace = common.DB
         rpc = get_client()
         rpc_ret = rpc.call(target, ctxt={'finishtime': rpcfinishtime(),
-                                            'agents': [agent_id, ]},
-                              msg={'method': 'start_entity', 'args': dict(entity=entity)})
+                                         'agents': [agent_id, ]},
+                           msg={'method': 'start_entity', 'args': dict(entity=entity)})
         if not rpc_ret:
             raise RpcResultError('create entitys result is None')
         if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
@@ -200,8 +200,8 @@ class DatabaseManager(DatabaseManagerBase):
     def _stop_database(self, database, **kwargs):
         req = kwargs.pop('req')
         entity = int(database.reflection_id)
-        _entity =  entity_controller.show(req=req, entity=entity,
-                                          endpoint=common.DB, body={'ports': False})['data'][0]
+        _entity = entity_controller.show(req=req, entity=entity,
+                                         endpoint=common.DB, body={'ports': False})['data'][0]
         agent_id = _entity['agent_id']
         metadata = _entity['metadata']
         target = targetutils.target_agent_by_string(metadata.get('agent_type'),
@@ -209,8 +209,9 @@ class DatabaseManager(DatabaseManagerBase):
         target.namespace = common.DB
         rpc = get_client()
         rpc_ret = rpc.call(target, ctxt={'finishtime': rpcfinishtime(),
-                                            'agents': [agent_id, ]},
-                              msg={'method': 'stop_entity', 'args': dict(entity=entity)})
+                                         'agents': [agent_id, ]},
+                           msg={'method': 'stop_entity',
+                                'args': dict(entity=entity)})
         if not rpc_ret:
             raise RpcResultError('stop database entity result is None')
         if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
@@ -219,6 +220,17 @@ class DatabaseManager(DatabaseManagerBase):
 
     def _status_database(self, database, **kwargs):
         raise NotImplementedError
+
+    def _address(self, session, dbmaps):
+        entitys = map(int, dbmaps.keys())
+        emaps = entity_controller.shows(endpoint=common.DB, entitys=entitys)
+        address_maps = dict()
+        for entity in emaps:
+            entityinfo = emaps[entity]
+            port = entityinfo['ports'][0] if entityinfo['ports'] else -1
+            host = entityinfo['metadata']['local_ip'] if entityinfo['metadata'] else None
+            address_maps[dbmaps[str(entity)]] = dict(host=host, port=port)
+        return address_maps
 
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):

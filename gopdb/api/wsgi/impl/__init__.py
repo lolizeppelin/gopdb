@@ -11,6 +11,7 @@ from simpleservice.ormdb.api import model_count_with_key
 from simpleservice.ormdb.api import model_query
 
 from gopdb import common
+from gopdb import utils
 from gopdb.api import endpoint_session
 from gopdb.api.wsgi.impl import exceptions
 from gopdb.api.wsgi.impl import privilegeutils
@@ -18,6 +19,51 @@ from gopdb.models import GopDatabase
 from gopdb.models import GopSalveRelation
 from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
+
+
+MANAGERCACHE = {}
+
+def _impl(database_id):
+    try:
+        return MANAGERCACHE[database_id]
+    except KeyError:
+        session = endpoint_session(readonly=True)
+        try:
+            database = model_query(session, GopDatabase, GopDatabase.database_id == database_id).one()
+            if database_id not in MANAGERCACHE:
+                dbmanager = utils.impl_cls('wsgi', database.impl)
+                MANAGERCACHE.setdefault(database_id, dbmanager)
+            return MANAGERCACHE[database_id]
+        finally:
+            session.close()
+
+
+def _address(database_ids):
+    IMPLMAP = {}
+    NOT_CACHED = []
+    for database_id in database_ids:
+        if database_id in MANAGERCACHE:
+            try:
+                IMPLMAP[MANAGERCACHE[database_id]].append(database_id)
+            except KeyError:
+                IMPLMAP[MANAGERCACHE[database_id]] = [database_id, ]
+        else:
+            NOT_CACHED.append(database_id)
+    if NOT_CACHED:
+        session = endpoint_session(readonly=True)
+        query = model_query(session, (GopDatabase.database_id, GopDatabase.impl),
+                            filter=GopDatabase.database_id.in_(NOT_CACHED))
+        for r in query:
+            dbmanager = utils.impl_cls('wsgi', r[1])
+            try:
+                IMPLMAP[dbmanager].append(r[0])
+            except KeyError:
+                IMPLMAP[dbmanager] = [r[0], ]
+        session.close()
+    maps = dict()
+    for dbmanager in IMPLMAP:
+        maps.update(dbmanager.address(IMPLMAP[dbmanager]))
+    return maps
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -239,6 +285,20 @@ class DatabaseManagerBase(object):
     @abc.abstractmethod
     def _status_database(self, database, **kwargs):
         """impl status a database code"""
+
+    def address(self, databases):
+        session = endpoint_session(readonly=True)
+        query = model_query(session, GopDatabase,
+                            filter=GopDatabase.database_id.in_(databases))
+        databases = query.all()
+        maps = dict()
+        for database in databases:
+            maps[database.reflection_id] = database.database_id
+        return self._address(session, maps)
+
+    @abc.abstractmethod
+    def _address(self, session, dbmaps):
+        """impl get database address code"""
 
     # ----------schema action-------------
 

@@ -129,6 +129,15 @@ class DatabaseManager(DatabaseManagerBase):
         """impl status a database code"""
         raise NotImplementedError
 
+    def _address(self, session, dbmaps):
+        record_ids = map(int, dbmaps.keys())
+        _records = model_query(session, RecordDatabase,
+                              filter=RecordDatabase.record_id.in_(record_ids))
+        address_maps = dict()
+        for _record in _records:
+            address_maps[dbmaps[str(_records.record_id)]] = dict(host=_record.host, port=_record.port)
+        return address_maps
+
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):
         _record = model_query(session, RecordDatabase,
