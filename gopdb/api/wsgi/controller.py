@@ -416,6 +416,7 @@ class SchemaReuest(BaseContorller):
                               SchemaQuote.qdatabase_id,
                               SchemaQuote.entity,
                               SchemaQuote.endpoint,
+                              GopSchema.database_id,
                               GopSchema.schema,
                               GopSchema.user,
                               GopSchema.passwd,
