@@ -188,9 +188,11 @@ class DatabaseManager(DatabaseManagerBase):
                                                     metadata.get('host'))
         target.namespace = common.DB
         rpc = get_client()
-        rpc_ret = rpc.call(target, ctxt={'finishtime': rpcfinishtime(),
+        finishtime, timeout = rpcfinishtime()
+        rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime,
                                          'agents': [agent_id, ]},
-                           msg={'method': 'start_entity', 'args': dict(entity=entity)})
+                           msg={'method': 'start_entity', 'args': dict(entity=entity)},
+                           timeout=timeout)
         if not rpc_ret:
             raise RpcResultError('create entitys result is None')
         if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
@@ -208,10 +210,12 @@ class DatabaseManager(DatabaseManagerBase):
                                                     metadata.get('host'))
         target.namespace = common.DB
         rpc = get_client()
-        rpc_ret = rpc.call(target, ctxt={'finishtime': rpcfinishtime(),
+        finishtime, timeout = rpcfinishtime()
+        rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime,
                                          'agents': [agent_id, ]},
                            msg={'method': 'stop_entity',
-                                'args': dict(entity=entity)})
+                                'args': dict(entity=entity)},
+                           timeout=timeout)
         if not rpc_ret:
             raise RpcResultError('stop database entity result is None')
         if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
