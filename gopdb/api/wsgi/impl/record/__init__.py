@@ -161,7 +161,8 @@ class DatabaseManager(DatabaseManagerBase):
                 engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
                 utils.create_schema(engine, auths=auths,
                                     character_set=options.get('character_set'),
-                                    collation_type=options.get('collation_type'))
+                                    collation_type=options.get('collation_type'),
+                                    connection_timeout=3)
             yield host, port
         except Exception:
             raise

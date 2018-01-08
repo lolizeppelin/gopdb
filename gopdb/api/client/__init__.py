@@ -125,7 +125,8 @@ class GopDBClient(GopHttpClientApi):
     # schemas api
 
     def schemas_create(self, database_id, body):
-        resp, results = self.retryable_post(action=self.schemas_path % str(database_id), body=body)
+        resp, results = self.retryable_post(action=self.schemas_path % str(database_id), body=body,
+                                            timeout=10)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='create schema on %s fail:%d' %
                                                     (str(database_id), results['resultcode']),
