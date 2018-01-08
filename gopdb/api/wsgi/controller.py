@@ -231,6 +231,7 @@ class SchemaReuest(BaseContorller):
 
     def index(self, req, database_id, body=None):
         body = body or {}
+        database_id = int(database_id)
         order = body.pop('order', None)
         desc = body.pop('desc', False)
         page_num = int(body.pop('page_num', 0))
@@ -247,6 +248,7 @@ class SchemaReuest(BaseContorller):
                                                     ],
                                            counter=GopSchema.schema_id,
                                            order=order, desc=desc,
+                                           filter=GopSchema.database_id == database_id,
                                            page_num=page_num)
         return results
 
@@ -254,6 +256,7 @@ class SchemaReuest(BaseContorller):
         """create schema in database with database_id
         """
         body = body or {}
+        database_id = int(database_id)
         jsonutils.schema_validate(body, self.CREATESCHEMA)
         auth = body.pop('auth', None)
         options = body.pop('options', None)
@@ -267,6 +270,7 @@ class SchemaReuest(BaseContorller):
 
     def show(self, req, database_id, schema, body=None):
         body = body or {}
+        database_id = int(database_id)
         secret = body.get('secret', False)
         kwargs = dict(req=req)
         kwargs.update(body)
@@ -279,6 +283,7 @@ class SchemaReuest(BaseContorller):
 
     def delete(self, req, database_id, schema, body=None):
         body = body or {}
+        database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
@@ -288,6 +293,7 @@ class SchemaReuest(BaseContorller):
 
     def copy(self, req, database_id, schema, body=None):
         body = body or {}
+        database_id = int(database_id)
         target_database_id = body.pop('target.database_id')
         target_schema = body.pop('target.schema')
         auth = body.pop('auth')
@@ -303,6 +309,7 @@ class SchemaReuest(BaseContorller):
     def bond(self, req, database_id, schema, body=None):
         """schema quote"""
         body = body or {}
+        database_id = int(database_id)
         slave = body.get('slave')
         desc = body.get('desc')
         esure = body.get('esure', True)
