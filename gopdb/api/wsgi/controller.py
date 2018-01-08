@@ -8,9 +8,9 @@ from sqlalchemy.sql import and_
 
 from simpleutil.common.exceptions import InvalidArgument
 from simpleutil.log import log as logging
+from simpleutil.utils import argutils
 from simpleutil.utils import jsonutils
 from simpleutil.utils import singleton
-from simpleutil.utils import argutils
 
 from simpleservice.ormdb.api import model_query
 from simpleservice.rpc.exceptions import AMQPDestinationNotFound
@@ -20,17 +20,17 @@ from simpleservice.rpc.exceptions import NoSuchMethod
 from goperation.manager.exceptions import CacheStoneError
 from goperation.manager.utils import resultutils
 from goperation.manager.wsgi.contorller import BaseContorller
-from goperation.manager.wsgi.entity.controller import EntityReuest
 from goperation.manager.wsgi.endpoint.controller import EndpointReuest
+from goperation.manager.wsgi.entity.controller import EntityReuest
 from goperation.manager.wsgi.exceptions import RpcPrepareError
 from goperation.manager.wsgi.exceptions import RpcResultError
 
 from gopdb import common
 from gopdb import utils
 from gopdb.api import endpoint_session
-from gopdb.api.wsgi.impl import exceptions
-from gopdb.api.wsgi.impl import _impl
+from gopdb.api.wsgi import exceptions
 from gopdb.api.wsgi.impl import _address
+from gopdb.api.wsgi.impl import _impl
 from gopdb.models import GopDatabase
 from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
@@ -49,7 +49,11 @@ FAULT_MAP = {InvalidArgument: webob.exc.HTTPClientError,
              CacheStoneError: webob.exc.HTTPInternalServerError,
              RpcPrepareError: webob.exc.HTTPInternalServerError,
              NoResultFound: webob.exc.HTTPNotFound,
-             MultipleResultsFound: webob.exc.HTTPInternalServerError
+             MultipleResultsFound: webob.exc.HTTPInternalServerError,
+             exceptions.AcceptableDbError: webob.exc.HTTPClientError,
+             exceptions.AcceptableSchemaError: webob.exc.HTTPClientError,
+             exceptions.UnAcceptableDbError: webob.exc.HTTPInternalServerError,
+             exceptions.UnAcceptableSchemaError: webob.exc.HTTPInternalServerError,
              }
 
 entity_controller = EntityReuest()

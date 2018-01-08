@@ -2,9 +2,9 @@ import contextlib
 
 from sqlalchemy.pool import NullPool
 
+from simpleutil.common.exceptions import InvalidArgument
 from simpleutil.utils import argutils
 from simpleutil.utils import attributes
-from simpleutil.common.exceptions import InvalidArgument
 
 from simpleservice.ormdb.api import model_query
 from simpleservice.ormdb.argformater import connformater
@@ -12,11 +12,11 @@ from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
 
 from gopdb import common
+from gopdb.api.wsgi import exceptions
 from gopdb.api.wsgi.impl import DatabaseManagerBase
-from gopdb.api.wsgi.impl import exceptions
 from gopdb.api.wsgi.impl import privilegeutils
-from gopdb.models import RecordDatabase
 from gopdb.models import GopDatabase
+from gopdb.models import RecordDatabase
 
 
 class DatabaseManager(DatabaseManagerBase):

@@ -1,30 +1,31 @@
 # -*- coding:utf-8 -*-
-import eventlet
 import contextlib
+import eventlet
+
 from sqlalchemy.pool import NullPool
 
-from simpleutil.utils import uuidutils
-from simpleutil.utils import argutils
 from simpleutil.common.exceptions import InvalidArgument
 from simpleutil.log import log as logging
+from simpleutil.utils import argutils
+from simpleutil.utils import uuidutils
+
 from simpleservice.ormdb.argformater import connformater
 from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
 
-
-from goperation.manager.utils import targetutils
+from goperation.manager import common as manager_common
 from goperation.manager.api import get_client
 from goperation.manager.api import rpcfinishtime
-from goperation.manager import common as manager_common
+from goperation.manager.utils import targetutils
 from goperation.manager.wsgi.entity.controller import EntityReuest
 from goperation.manager.wsgi.exceptions import RpcResultError
 
 from gopdb import common
+from gopdb.api.wsgi import exceptions
 from gopdb.api.wsgi.impl import DatabaseManagerBase
-from gopdb.api.wsgi.impl import exceptions
 from gopdb.api.wsgi.impl import privilegeutils
-
 from gopdb.models import GopDatabase
+
 
 LOG = logging.getLogger(__name__)
 

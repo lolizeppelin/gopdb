@@ -5,11 +5,11 @@ class GopdbError(Exception):
     """gopdb base error"""
 
 
-class GopdbDatabaseError(Exception):
+class GopdbDatabaseError(GopdbError):
     """gopdb database base error"""
 
 
-class GopdbSchemaError(Exception):
+class GopdbSchemaError(GopdbError):
     """gopdb schema base error"""
 
 
