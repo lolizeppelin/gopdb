@@ -173,6 +173,7 @@ class DatabaseManagerBase(object):
                 port = address[1]
                 _result.setdefault('host', host)
                 _result.setdefault('port', port)
+                _result.setdefault('affinity', affinity)
                 if not _database.is_master:
                     raise exceptions.UnAcceptableDbError('Can not add slave database from api create database')
                 session.add(_database)
