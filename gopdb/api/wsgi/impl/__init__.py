@@ -487,7 +487,7 @@ class DatabaseManagerBase(object):
             squery = squery.options(joinedload(GopSchema.quotes, innerjoin=False))
             _schema = squery.one()
             if _schema.quotes:
-                if not (unquotes == set([_quote.quote_id for _quote in _schema.quotes])):
+                if unquotes != set([_quote.quote_id for _quote in _schema.quotes]):
                     raise exceptions.AcceptableSchemaError('Schema in quote, can not be delete')
             with self._delete_schema(session, _database, _schema, **kwargs) as address:
                 host = address[0]
