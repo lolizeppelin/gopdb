@@ -25,9 +25,9 @@ class SchemaQuote(TableBase):
                           nullable=False)
     qdatabase_id = sa.Column(sa.ForeignKey('gopdatabases.database_id', ondelete="RESTRICT", onupdate='RESTRICT'),
                             nullable=False)
-    entity = sa.Column(INTEGER(unsigned=True), nullable=False)
+    entity = sa.Column(INTEGER(unsigned=True), nullable=True)
     endpoint = sa.Column(VARCHAR(manager_common.MAX_ENDPOINT_NAME_SIZE),
-                         nullable=False)
+                         nullable=True)
     desc = sa.Column(VARCHAR(256), nullable=True)
     __table_args__ = (
         sa.Index('schema_index', schema_id),

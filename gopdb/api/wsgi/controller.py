@@ -317,10 +317,13 @@ class SchemaReuest(BaseContorller):
         slave = body.get('slave')
         desc = body.get('desc')
         esure = body.get('esure', True)
-        entity = int(body.pop('entity'))
         quote_id = body.get('quote_id')
-        endpoint = body.pop(common.ENDPOINTKEY)
+        entity = body.pop('entity', None)
+        entity = int(entity) if entity is not None else None
+        endpoint = body.pop(common.ENDPOINTKEY, None)
         if esure:
+            if not endpoint or not entity:
+                raise InvalidArgument('No endpoint info or entity, esure should be flase')
             # TODO log entity info
             entity_info = entity_controller.show(req=req, endpoint=endpoint, entity=entity)['data'][0]
         session = endpoint_session()
@@ -354,11 +357,17 @@ class SchemaReuest(BaseContorller):
                                        entity=entity, endpoint=endpoint, desc=desc)
             session.add(schema_quote)
             session.flush()
+        address = _address([quote_database_id, ]).get(quote_database_id)
+        port = address.get('port')
+        host = address.get('host')
         return resultutils.results(result='quote to %s.%d success' % (schema_quote.database_id,
                                                                       schema_quote.schema_id),
                                    data=[dict(schema_id=schema_quote.schema_id,
                                               quote_id=schema_quote.quote_id,
-                                              qdatabase_id=database_id)])
+                                              qdatabase_id=quote_database_id,
+                                              host=host,
+                                              port=port,
+                                              schema=schema)])
 
     def unquote(self, req, quote_id, body=None):
         """schema unquote"""
