@@ -314,7 +314,8 @@ class SchemaReuest(BaseContorller):
         """schema quote"""
         body = body or {}
         database_id = int(database_id)
-        slave = body.get('slave')
+        slave = body.get('slave', True)
+        slave_id = body.get('slave_id')
         desc = body.get('desc')
         esure = body.get('esure', True)
         quote_id = body.get('quote_id')
@@ -339,18 +340,25 @@ class SchemaReuest(BaseContorller):
         if not _schema:
             raise exceptions.AcceptableSchemaError('Schema %s not found' % schema)
         quote_database_id = _database.database_id
+        user = _schema.user
+        passwd = _schema.passwd
         # glock = get_global().lock('entitys')
         # with glock(common.DB, [entity, ]):
         with session.begin():
-            if slave is not None:
-                if slave > 0:
+            if slave:
+                if slave_id:
                     slaves = [_slave.slave_id for _slave in _database.slaves]
-                    if slave not in slaves:
+                    if slave_id not in slaves:
                         raise exceptions.AcceptableDbError('Slave %d not found' % slave)
-                    quote_database_id = slave
+                    quote_database_id = slave_id
                 else:
-                    # TODO auto select slave database
-                    quote_database_id = _database.slaves[0]
+                    if _database.slaves:
+                        # TODO auto select slave database
+                        quote_database_id = _database.slaves[0]
+                    else:
+                        LOG.warning('Not slave database, use master database as slave')
+                user = _schema.ro_user
+                passwd = _schema.ro_passwd
             schema_quote = SchemaQuote(quote_id=quote_id,
                                        schema_id=_schema.schema_id,
                                        qdatabase_id=quote_database_id,
@@ -367,6 +375,8 @@ class SchemaReuest(BaseContorller):
                                               qdatabase_id=quote_database_id,
                                               host=host,
                                               port=port,
+                                              user=user,
+                                              passwd=passwd,
                                               schema=schema)])
 
     def unquote(self, req, quote_id, body=None):
