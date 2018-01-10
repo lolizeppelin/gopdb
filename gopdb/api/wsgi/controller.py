@@ -344,31 +344,31 @@ class SchemaReuest(BaseContorller):
         passwd = _schema.passwd
         # glock = get_global().lock('entitys')
         # with glock(common.DB, [entity, ]):
-        with session.begin():
-            if slave:
-                if slave_id:
-                    slaves = [_slave.slave_id for _slave in _database.slaves]
-                    if slave_id not in slaves:
-                        raise exceptions.AcceptableDbError('Slave %d not found' % slave)
-                    quote_database_id = slave_id
+        if slave:
+            if slave_id:
+                slaves = [_slave.slave_id for _slave in _database.slaves]
+                if slave_id not in slaves:
+                    raise exceptions.AcceptableDbError('Slave %d not found' % slave)
+                quote_database_id = slave_id
+            else:
+                if _database.slaves:
+                    # TODO auto select slave database
+                    quote_database_id = _database.slaves[0]
                 else:
-                    if _database.slaves:
-                        # TODO auto select slave database
-                        quote_database_id = _database.slaves[0]
-                    else:
-                        LOG.warning('Not slave database, use master database as slave')
-                user = _schema.ro_user
-                passwd = _schema.ro_passwd
+                    LOG.warning('Not slave database, use master database as slave')
+            user = _schema.ro_user
+            passwd = _schema.ro_passwd
+        address = _address([quote_database_id, ]).get(quote_database_id)
+        with session.begin():
             schema_quote = SchemaQuote(quote_id=quote_id,
                                        schema_id=_schema.schema_id,
                                        qdatabase_id=quote_database_id,
                                        entity=entity, endpoint=endpoint, desc=desc)
             session.add(schema_quote)
             session.flush()
-        address = _address([quote_database_id, ]).get(quote_database_id)
         port = address.get('port')
         host = address.get('host')
-        return resultutils.results(result='quote to %s.%d success' % (schema_quote.database_id,
+        return resultutils.results(result='quote to %s.%d success' % (schema_quote.qdatabase_id,
                                                                       schema_quote.schema_id),
                                    data=[dict(schema_id=schema_quote.schema_id,
                                               quote_id=schema_quote.quote_id,
