@@ -11,7 +11,7 @@
 #module = gopdb.api.rpc
 
 # Endpoint max lock size (integer value)
-#max_lock = 5
+#max_lock = 100
 
 # local database login admin name (string value)
 #localroot = root
