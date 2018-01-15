@@ -39,28 +39,6 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
-CREATESCHEMA = {
-    'type': 'object',
-    'required': [common.ENDPOINTKEY, 'uri', 'dbtype'],
-    'properties':
-        {
-            common.ENDPOINTKEY:  {'type': 'string', 'description': 'endpoint name of database resource'},
-            'dbtype': {'type': 'string', 'description': 'database type mysql only now'},
-            'uri': {'type': 'string', 'description': 'impl checkout uri'},
-            'version': {'type': 'string'},
-            'auth': {'type': 'object'},
-            'esure': {'type': 'boolean'},
-            'timeout': {'type': 'integer', 'minimum': 3, 'maxmum': 3600},
-            'cdnhost': {'type': 'object',
-                        'required': ['hostname'],
-                        'properties': {'hostname': {'type': 'string'},
-                                       'listen': {'type': 'integer', 'minimum': 1, 'maxmum': 65535},
-                                       'charset': {'type': 'string'},
-                                       }},
-        }
-}
-
-
 def count_timeout(ctxt, kwargs):
     deadline = ctxt.get('deadline')
     timeout = kwargs.pop('timeout', None)
@@ -259,7 +237,6 @@ class Application(AppEndpointBase):
         return port
 
     def rpc_create_entity(self, ctxt, entity, **kwargs):
-        # jsonutils.schema_validate(kwargs, CREATESCHEMA)
         entity = int(entity)
         with self.lock(entity, timeout=3):
             if entity in self.entitys:
