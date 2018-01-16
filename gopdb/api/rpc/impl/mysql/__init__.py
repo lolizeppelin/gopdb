@@ -219,7 +219,7 @@ class DatabaseManager(DatabaseManagerBase):
                 process = psutil.Process(_pid)
         cmdlines = process.cmdline()
         if process.username() == user and '--datadir=%s' % datadir in cmdlines:
-            process.terminal()
+            process.terminate()
         else:
             raise ValueError('Process user or cmdline not match')
 
