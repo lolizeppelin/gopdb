@@ -42,6 +42,7 @@ def create_local_test(agent_id):
     print client.databases_create(body={'impl': 'local',
                                         'agent_id': agent_id,
                                         'dbtype': 'mysql',
+                                        'affinity': 2,
                                         'user': 'root',
                                         'passwd': '111111'})
 
@@ -66,8 +67,10 @@ def schema_create_test(database_id):
                                       'options': {'character_set': 'utf8'},
                                       'name': 'gamserver_db_3'})
 
-def schema_delete_test(database_id):
-    print client.schemas_delete(database_id=database_id, schema='gamserver_db_2')
+
+def schema_delete_test(database_id, schema, unquotes):
+    print client.schemas_delete(database_id=database_id, schema=schema,
+                                body={'unquotes': unquotes})
 
 
 def schema_bond(database_id):
@@ -83,6 +86,7 @@ def quote_show(quote_id, body=None):
 
 # index_test()
 # delete_test(database_id=40)
-# schema_delete_test(3)
+# schema_delete_test(42, 'gogamechen1_gamesvr_datadb_3', unquotes=[51])
+schema_delete_test(43, 'gogamechen1_gamesvr_logdb_3', unquotes=[50])
 # quote_show(quote_id=1, body={'schema': True, 'database': True})
-create_local_test(1)
+# create_local_test(1)

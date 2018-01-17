@@ -221,7 +221,7 @@ class Application(AppEndpointBase):
                 threadpool.add_thread(dbmanager.install, cfgfile, _notify_success, timeout,
                                       **kwargs)
 
-        def _port_notity():
+        def _port_notify():
             """notify port bond"""
             _timeout = timeout if timeout else 30
             overtime = int(time.time()) + _timeout
@@ -233,7 +233,7 @@ class Application(AppEndpointBase):
             self.client.ports_add(agent_id=self.manager.agent_id,
                                   endpoint=common.DB, entity=entity, ports=ports)
 
-        threadpool.add_thread(_port_notity)
+        threadpool.add_thread(_port_notify)
         return port
 
     def rpc_create_entity(self, ctxt, entity, **kwargs):
