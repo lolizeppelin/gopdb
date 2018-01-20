@@ -87,7 +87,7 @@ class DatabaseManagerBase(object):
                 filters.append(ors[0])
         session = endpoint_session(readonly=True)
         query = model_query(session, GopDatabase, filter=and_(*filters))
-        query.options(joinedload(GopDatabase.schemas, innerjoin=False))
+        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         results = self._select_database(session, query, dbtype, **kwargs)
         # 结果按照亲和性从小到大排序
         # 亲和性数值越大,匹配范围越广
