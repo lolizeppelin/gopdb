@@ -42,7 +42,7 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def databases_create(self, body):
+    def databases_create(self, body=None):
         resp, results = self.post(action=self.databases_path, body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='create database fail:%d' % results['resultcode'],
@@ -50,7 +50,7 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def databases_index(self, body):
+    def databases_index(self, body=None):
         resp, results = self.get(action=self.databases_path, body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='get database list fail:%d' % results['resultcode'],
@@ -58,7 +58,7 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def database_show(self, database_id, body):
+    def database_show(self, database_id, body=None):
         resp, results = self.get(action=self.database_path % str(database_id), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='show database %s fail:%d' %
@@ -67,7 +67,7 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def database_update(self, database_id, body):
+    def database_update(self, database_id, body=None):
         resp, results = self.put(action=self.database_path % str(database_id), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='update database %s fail:%d' %
@@ -76,7 +76,7 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def database_delete(self, database_id, body):
+    def database_delete(self, database_id, body=None):
         resp, results = self.delete(action=self.database_path % str(database_id), body=body,
                                     timeout=10)
         if results['resultcode'] != common.RESULT_SUCCESS:
@@ -86,7 +86,7 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def database_get_slaves(self, database_id, body):
+    def database_get_slaves(self, database_id, body=None):
         resp, results = self.get(action=self.database_path % (str(database_id), 'slaves'), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='get database %s slave list fail:%d' %
@@ -95,17 +95,8 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def database_get_status(self, database_id, body):
-        resp, results = self.get(action=self.database_path % (str(database_id), 'status'), body=body)
-        if results['resultcode'] != common.RESULT_SUCCESS:
-            raise ServerExecuteRequestError(message='get database %s slave list fail:%d' %
-                                                    (str(database_id), results['resultcode']),
-                                            code=resp.status_code,
-                                            resone=results['result'])
-        return results
-
-    def database_start(self, database_id, body):
-        resp, results = self.retryable_post(action=self.database_path % (str(database_id), 'start'), body=body)
+    def database_start(self, database_id, body=None):
+        resp, results = self.retryable_post(action=self.database_path_ex % (str(database_id), 'start'), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='start database %s fail:%d' %
                                                     (str(database_id), results['resultcode']),
@@ -113,8 +104,8 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def database_stop(self, database_id, body):
-        resp, results = self.post(action=self.database_path % (str(database_id), 'stop'), body=body)
+    def database_stop(self, database_id, body=None):
+        resp, results = self.post(action=self.database_path_ex % (str(database_id), 'stop'), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='stop database %s fail:%d' %
                                                     (str(database_id), results['resultcode']),
@@ -122,8 +113,8 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def database_status(self, database_id, body):
-        resp, results = self.post(action=self.database_path % (str(database_id), 'status'), body=body)
+    def database_status(self, database_id, body=None):
+        resp, results = self.get(action=self.database_path_ex % (str(database_id), 'status'), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='get database %s status fail:%d' %
                                                     (str(database_id), results['resultcode']),

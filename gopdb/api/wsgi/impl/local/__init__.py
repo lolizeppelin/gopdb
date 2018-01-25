@@ -153,7 +153,8 @@ class DatabaseManager(DatabaseManagerBase):
 
     def _esure_create(self, database, **kwargs):
         entity_controller.post_create_entity(entity=int(database.reflection_id),
-                                             endpoint=common.DB, database_id=database.database_id)
+                                             endpoint=common.DB, database_id=database.database_id,
+                                             dbtype=database.dbtype)
 
     @contextlib.contextmanager
     def _delete_database(self, session, database, **kwargs):

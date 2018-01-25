@@ -110,6 +110,7 @@ class DatabaseManagerBase(object):
             for _database in query:
                 dbinfo = dict(database_id=_database.database_id)
                 dbinfo.setdefault(key, _database.reflection_id)
+                dbinfo.setdefault('dbtype', _database.dbtype)
                 _result.append(dbinfo)
         return _result
 

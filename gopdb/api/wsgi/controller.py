@@ -184,7 +184,11 @@ class DatabaseReuest(BaseContorller):
 
     def status(self, req, database_id, body=None):
         body = body or {}
-        raise NotImplementedError
+        kwargs = dict(req=req)
+        kwargs.update(body)
+        dbmanager = _impl(database_id)
+        dbresult = dbmanager.status_database(database_id, **kwargs)
+        return resultutils.results(result='status database success', data=[dbresult, ])
 
 
 @singleton.singleton

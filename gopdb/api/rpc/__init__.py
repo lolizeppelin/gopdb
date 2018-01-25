@@ -89,7 +89,9 @@ class Application(AppEndpointBase):
             if _entity in self.konwn_database:
                 raise RuntimeError('Database Entity %d Duplicate' % _entity)
             LOG.info('entity %d with database id %d' % (_entity, _database_id))
-            self.konwn_database.setdefault(_entity, dict(database_id=_database_id, pid=None))
+            self.konwn_database.setdefault(_entity, dict(database_id=_database_id,
+                                                         dbtype=dbinfo.get('dbtype'),
+                                                         pid=None))
         # find entity pid
         for entity in self.entitys:
             _pid = self._find_from_pids(entity, pids)
@@ -123,6 +125,9 @@ class Application(AppEndpointBase):
 
     def _db_conf(self, entity, dbtype):
         return os.path.join(self.entity_home(entity), '%s.conf' % dbtype)
+
+    def _dbtype(self, entity):
+        return self.konwn_database[entity].get('dbtype')
 
     @contextlib.contextmanager
     def _allocate_port(self, entity, port):
@@ -265,7 +270,8 @@ class Application(AppEndpointBase):
 
     def rpc_post_create_entity(self, ctxt, entity, **kwargs):
         database_id = kwargs.pop('database_id')
-        self.konwn_database.setdefault(entity, dict(database_id=database_id, pid=None))
+        dbtype = kwargs.pop('dbtype')
+        self.konwn_database.setdefault(entity, dict(database_id=database_id, dbtype=dbtype, pid=None))
 
     def rpc_reset_entity(self, ctxt, entity, **kwargs):
         entity = int(entity)
@@ -305,7 +311,7 @@ class Application(AppEndpointBase):
                                           details=details)
 
     def rpc_start_entity(self, ctxt, entity, **kwargs):
-        dbtype = kwargs.pop('dbtype')
+        dbtype = self._dbtype(entity)
         dbmanager = utils.impl_cls('rpc', dbtype)
         cfgfile = self._db_conf(entity, dbtype)
         p = self._entity_process(entity)
@@ -321,7 +327,7 @@ class Application(AppEndpointBase):
                                                    result=p.info)])
 
     def rpc_stop_entity(self, ctxt, entity, **kwargs):
-        dbtype = kwargs.pop('dbtype')
+        dbtype = self._dbtype(entity)
         dbmanager = utils.impl_cls('rpc', dbtype)
         p = self._entity_process(entity)
         cfgfile = self._db_conf(entity, dbtype)
@@ -331,12 +337,13 @@ class Application(AppEndpointBase):
                                           result='stop database entity success')
 
     def rpc_status_entity(self, ctxt, entity, **kwargs):
+        dbtype = self._dbtype(entity)
         p = self._entity_process(entity)
         database_id = self.konwn_database[entity].get('database_id')
         if not p:
-            result = 'entity %d with database_id %d is not running' % (entity, database_id)
+            result = '%s %d(%d) not running' % (dbtype, entity, database_id)
         else:
-            result = 'entity %d with database_id %d running at pid %d' % (entity, database_id, p.pid)
+            result = '%s %d(%d) running at pid %d' % (dbtype, entity, database_id, p.pid)
 
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
