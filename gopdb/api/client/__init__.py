@@ -107,7 +107,7 @@ class GopDBClient(GopHttpClientApi):
     def database_start(self, database_id, body):
         resp, results = self.retryable_post(action=self.database_path % (str(database_id), 'start'), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
-            raise ServerExecuteRequestError(message='get database %s slave list fail:%d' %
+            raise ServerExecuteRequestError(message='start database %s fail:%d' %
                                                     (str(database_id), results['resultcode']),
                                             code=resp.status_code,
                                             resone=results['result'])
@@ -116,7 +116,16 @@ class GopDBClient(GopHttpClientApi):
     def database_stop(self, database_id, body):
         resp, results = self.post(action=self.database_path % (str(database_id), 'stop'), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
-            raise ServerExecuteRequestError(message='get database %s slave list fail:%d' %
+            raise ServerExecuteRequestError(message='stop database %s fail:%d' %
+                                                    (str(database_id), results['resultcode']),
+                                            code=resp.status_code,
+                                            resone=results['result'])
+        return results
+
+    def database_status(self, database_id, body):
+        resp, results = self.post(action=self.database_path % (str(database_id), 'status'), body=body)
+        if results['resultcode'] != common.RESULT_SUCCESS:
+            raise ServerExecuteRequestError(message='get database %s status fail:%d' %
                                                     (str(database_id), results['resultcode']),
                                             code=resp.status_code,
                                             resone=results['result'])

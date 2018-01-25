@@ -282,7 +282,10 @@ class DatabaseManagerBase(object):
         """impl stop a database code"""
 
     def status_database(self, database_id, **kwargs):
-        pass
+        session = endpoint_session(readonly=True)
+        query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
+        _database = query.one()
+        return self._status_database(_database, **kwargs)
 
     @abc.abstractmethod
     def _status_database(self, database, **kwargs):

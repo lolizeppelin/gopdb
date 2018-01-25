@@ -224,7 +224,27 @@ class DatabaseManager(DatabaseManagerBase):
         return rpc_ret
 
     def _status_database(self, database, **kwargs):
-        raise NotImplementedError
+        req = kwargs.pop('req')
+        entity = int(database.reflection_id)
+        _entity = entity_controller.show(req=req, entity=entity,
+                                         endpoint=common.DB, body={'ports': False})['data'][0]
+        agent_id = _entity['agent_id']
+        metadata = _entity['metadata']
+        target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                    metadata.get('host'))
+        target.namespace = common.DB
+        rpc = get_client()
+        finishtime, timeout = rpcfinishtime()
+        rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime,
+                                         'agents': [agent_id, ]},
+                           msg={'method': 'status_entity',
+                                'args': dict(entity=entity)},
+                           timeout=timeout)
+        if not rpc_ret:
+            raise RpcResultError('status database entity result is None')
+        if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+            raise RpcResultError('status database entity fail %s' % rpc_ret.get('result'))
+        return rpc_ret
 
     def _address(self, session, dbmaps):
         entitys = map(int, dbmaps.keys())

@@ -332,3 +332,12 @@ class Application(AppEndpointBase):
 
     def rpc_status_entity(self, ctxt, entity, **kwargs):
         p = self._entity_process(entity)
+        database_id = self.konwn_database[entity].get('database_id')
+        if not p:
+            result = 'entity %d with database_id %d is not running' % (entity, database_id)
+        else:
+            result = 'entity %d with database_id %d running at pid %d' % (entity, database_id, p.pid)
+
+        return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                          ctxt=ctxt,
+                                          result=result)
