@@ -333,8 +333,9 @@ class Application(AppEndpointBase):
         dbtype = self._dbtype(entity)
         dbmanager = utils.impl_cls('rpc', dbtype)
         p = self._entity_process(entity)
-        cfgfile = self._db_conf(entity, dbtype)
-        dbmanager.stop(cfgfile, postrun=None, timeout=None, process=p)
+        if p:
+            cfgfile = self._db_conf(entity, dbtype)
+            dbmanager.stop(cfgfile, postrun=None, timeout=None, process=p)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
                                           result='stop database entity success')
