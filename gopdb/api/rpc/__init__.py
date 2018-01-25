@@ -84,13 +84,14 @@ class Application(AppEndpointBase):
         # reflect entity database_id
         dbmaps = self.client.reflect_database(impl='local', body=dict(entitys=self.entitys))['data']
         for dbinfo in dbmaps:
-            _entity = int(dbinfo.get('entity'))
-            _database_id = dbinfo.get('database_id')
+            _entity = int(dbinfo.pop('entity'))
+            _database_id = dbinfo.pop('database_id')
+            _dbtype = dbinfo.pop('dbtype')
             if _entity in self.konwn_database:
                 raise RuntimeError('Database Entity %d Duplicate' % _entity)
             LOG.info('entity %d with database id %d' % (_entity, _database_id))
             self.konwn_database.setdefault(_entity, dict(database_id=_database_id,
-                                                         dbtype=dbinfo.get('dbtype'),
+                                                         dbtype=_dbtype,
                                                          pid=None))
         # find entity pid
         for entity in self.entitys:
