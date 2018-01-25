@@ -320,12 +320,14 @@ class Application(AppEndpointBase):
             if not p:
                 dbmanager.start(cfgfile)
                 eventlet.sleep(0.5)
+                p = self._entity_process(entity)
+        if not p:
+            return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                              ctxt=ctxt,
+                                              result='start entity faile, process not exist after start')
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
-                                          result='start entity success',
-                                          details=[dict(detail_id=entity,
-                                                   resultcode=manager_common.RESULT_SUCCESS,
-                                                   result=p.info)])
+                                          result='start entity success, runinng on pid %d' % p.info.get('pid'))
 
     def rpc_stop_entity(self, ctxt, entity, **kwargs):
         dbtype = self._dbtype(entity)
