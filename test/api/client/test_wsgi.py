@@ -46,13 +46,21 @@ def create_local_test(agent_id):
                                         'user': 'root',
                                         'passwd': '111111'})
 
+
 def index_test():
     print client.databases_index(body={})
 
 
-
 def show_test():
-    print client.database_show(database_id=1, body={})
+    print client.database_show(database_id=1)
+
+
+def status_test(database_id):
+    print client.database_status(database_id=database_id)
+
+
+def start_test(database_id):
+    print client.database_start(database_id=database_id)
 
 
 def delete_test(database_id):
@@ -87,6 +95,11 @@ def quote_show(quote_id, body=None):
 # index_test()
 # delete_test(database_id=40)
 # schema_delete_test(42, 'gogamechen1_gamesvr_datadb_3', unquotes=[51])
-schema_delete_test(43, 'gogamechen1_gamesvr_logdb_3', unquotes=[50])
+# schema_delete_test(43, 'gogamechen1_gamesvr_logdb_3', unquotes=[50])
 # quote_show(quote_id=1, body={'schema': True, 'database': True})
 # create_local_test(1)
+
+status_test(database_id=1)
+status_test(database_id=42)
+status_test(database_id=43)
+# start_test(database_id=43)

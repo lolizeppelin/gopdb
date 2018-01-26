@@ -139,6 +139,8 @@ class DatabaseManagerBase(object):
                        impl=_database.impl,
                        dbtype=_database.dbtype,
                        dbversion=_database.dbversion,
+                       status=_database.status,
+                       is_master=_database.is_master,
                        schemas=[dict(schema=schema.schema,
                                      schema_id=schema.schema_id
                                      ) for schema in schemas],

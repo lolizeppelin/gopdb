@@ -1,0 +1,238 @@
+#!/usr/bin/python
+import time
+import logging
+import sys
+import requests
+
+from simpleutil.config import cfg
+from simpleutil.config import types
+from simpleutil.utils import table
+from simpleutil.utils import timeutils
+
+from goperation.api.client.config import client_opts
+from goperation.api.client.config import index_opts
+from goperation.api.client import ManagerClient
+from goperation.api.client.utils import p_asyncrequest
+from goperation.api.client.utils import wait_finish
+
+from goperation.manager import common as manager_common
+
+from gopdb import common
+from gopdb.api.client import GopDBClient
+
+BASECONF = cfg.ConfigOpts()
+
+CONF = cfg.CONF
+
+select_opts = [
+    cfg.StrOpt('impl',
+               short='m',
+               default='local',
+               choices=['local', 'record'],
+               help='Database impl type, default value is loacl where create',
+               ),
+]
+
+create_local_opts = [
+    cfg.IntOpt('agent',
+               required=True,
+               help='Database install agent id, value is int'),
+]
+
+create_record_opts = [
+    cfg.HostnameOrIPOpt('host',
+                        required=True,
+                        help='Database instance ipaddress'),
+    cfg.PortOpt('port',
+                default=3306,
+                help='Database instance port'),
+]
+
+IMPL = {'local': create_local_opts, 'record': create_record_opts}
+
+create_base_opts = [
+    cfg.StrOpt('dbtype',
+               default='mysql',
+               help='Database type, defalut is mysql',
+               ),
+    cfg.IntOpt('affinity',
+               default=0,
+               help='Database affinity mark, see endpoint for more',
+               ),
+    cfg.StrOpt('user',
+               short='u',
+               default='root',
+               help='Database root user name'),
+    cfg.StrOpt('passwd',
+               short='p',
+               default=None,
+               help='Database root user password, if value is empty, '
+                    'create schema will do nothing'),
+]
+
+one_opts = [
+    cfg.IntOpt('database_id',
+               required=True,
+               help='Target Database id'),
+]
+
+
+def prepare_results(r):
+    if r is None:
+        raise ValueError('Resulst is None')
+    return r.get('resultcode'), r.get('result'), r.get('data')
+
+
+def client(session=None):
+    return GopDBClient(httpclient=ManagerClient(url=CONF.gcenter, port=CONF.gcenter_port,
+                                                retries=CONF.retries, timeout=CONF.apitimeout,
+                                                token=CONF.trusted, session=session))
+
+
+def create():
+    _clinet = client()
+    impl_opts = IMPL[BASECONF.impl]
+
+    CONF.register_cli_opts(create_base_opts)
+    CONF.register_cli_opts(impl_opts)
+    CONF(project='cmd')
+
+    body = {}
+    for opt in create_base_opts:
+        body.setdefault(opt.name, CONF[opt.name])
+
+    for opt in impl_opts:
+        body.setdefault(opt.name, CONF[opt.name])
+        # _clinet.databases_create(body=body)
+
+
+def list():
+    cfg.set_defaults(select_opts, impl=None)
+
+    body = {}
+    for opt in select_opts:
+        body.setdefault(opt.name, CONF[opt.name])
+    for opt in index_opts:
+        body.setdefault(opt.name, CONF[opt.name])
+
+    CONF.register_cli_opts(select_opts)
+    CONF.register_cli_opts(index_opts)
+    CONF(project='cmd')
+    _client = client()
+
+    code, result, data = prepare_results(_client.databases_index(body=body))
+    if code:
+        print('\033[1;31;40m')
+        print 'Fail, code %d, result %s' % (code, result)
+        if data:
+            print data
+        print('\033[0m')
+        sys.exit(1)
+    database_heads = ['id', 'impl', 'dbtype', 'version', 'reflection_id', 'status', 'desc']
+    print('\033[1;32;40m')
+    print 'Database Status\t %d:OK\t %d:UNACTIVE' % (common.OK, common.UNACTIVE)
+    print('\033[0m')
+    tb = table.PleasantTable(ident=0, columns=database_heads, counter=True)
+    for database in data:
+        tb.add_row([database.get('database_id'), database.get('impl'), database.get('dbtype'),
+                    database.get('dbversion'), database.get('reflection_id'),
+                    database.get('status'), database.get('desc')])
+    print tb.pformat()
+
+
+def show():
+    CONF.register_cli_opts(one_opts)
+    CONF(project='cmd')
+    _client = client()
+    code, result, data = prepare_results(_client.database_show(CONF.database_id))
+    if code:
+        print('\033[1;31;40m')
+        print 'Fail, code %d, result %s' % (code, result)
+        if data:
+            print data
+        print('\033[0m')
+        sys.exit(1)
+    database = data[0]
+    quotes = database.get('quotes')
+    slaves = database.get('slaves')
+    schemas = database.get('schemas')
+
+    print('\033[1;32;40m')
+    print 'Database Status\t %d:OK\t %d:UNACTIVE' % (common.OK, common.UNACTIVE)
+    print 'id: %d' % database.get('agent_id')
+    print 'impl: %s' % database.get('impl')
+    print 'dbtype: %s' % database.get('dbtype')
+    print 'version: %s' % database.get('dbversion')
+    print 'status: %d' % database.get('status')
+    print 'is_master: %d' % database.get('is_master')
+    if slaves:
+        tb = table.PleasantTable(ident=8,
+                                 columns=['slave_id', 'readonly'],
+                                 counter=True)
+        for salve in slaves:
+            tb.add_row([salve.get('slave_id'), salve.get('readonly')])
+        print tb.pformat()
+    if schemas:
+        tb = table.PleasantTable(ident=8, columns=['schema_id', 'schema'], counter=True)
+        for schema in schemas:
+            tb.add_row([schema.get('schema_id'), schema.get('schema')])
+        print tb.pformat()
+    if quotes:
+        tb = table.PleasantTable(ident=8,
+                                 columns=['endpoint', 'entity', 'schema_id', 'quote_id', 'desc'],
+                                 counter=True)
+        for quote in quotes:
+            tb.add_row([quote.get('endpoint'), quote.get('entity'),
+                        quote.get('schema_id'), quote.get('quote_id'),
+                        quote.get('desc')])
+        print tb.pformat()
+
+    print('\033[0m')
+
+
+def active():
+    CONF.register_cli_opts(one_opts)
+    CONF(project='cmd')
+    _client = client()
+    code, result, data = prepare_results(_client.database_update(CONF.agent,
+                                                                 body=dict(status=common.OK)))
+    if code:
+        print('\033[1;31;40m')
+        print 'Fail, code %d, result %s' % (code, result)
+        if data:
+            print data
+        print('\033[0m')
+        sys.exit(1)
+    agent = data[0]
+    metadata = agent.get('metadata')
+    print('\033[1;32;40m')
+    print 'Active database success'
+    print 'id: %d' % agent.get('agent_id')
+    print 'host: %s' % agent.get('host')
+    print 'type: %s' % agent.get('agent_type')
+    print 'zone: %s' % metadata.get('zone')
+    print 'local_ip: %s' % metadata.get('local_ip')
+    print 'external_ips: %s' % ','.join(metadata.get('external_ips'))
+    print('\033[0m')
+
+
+
+def main():
+    try:
+        func = sys.argv.pop(1)
+        if func not in ('list', 'show', 'create', 'active'):
+            raise ValueError
+    except (IndexError, ValueError):
+        print 'action is:  list status active status'
+        print 'use -h for help'
+        sys.exit(1)
+    func = eval(func)
+    BASECONF.register_cli_opts(select_opts)
+    BASECONF(project='select')
+    logging.basicConfig(level=logging.WARN)
+    CONF.register_cli_opts(client_opts)
+    func()
+
+
+if __name__ == '__main__':
+    main()
