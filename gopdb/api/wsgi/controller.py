@@ -139,6 +139,7 @@ class DatabaseReuest(BaseContorller):
 
     def show(self, req, database_id, body=None):
         body = body or {}
+        database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
@@ -147,6 +148,7 @@ class DatabaseReuest(BaseContorller):
 
     def update(self, req, database_id, body=None):
         body = body or {}
+        database_id = int(database_id)
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
         with session.begin():
@@ -160,6 +162,7 @@ class DatabaseReuest(BaseContorller):
 
     def delete(self, req, database_id, body=None):
         body = body or {}
+        database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
@@ -168,6 +171,7 @@ class DatabaseReuest(BaseContorller):
 
     def start(self, req, database_id, body=None):
         body = body or {}
+        database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
@@ -176,6 +180,7 @@ class DatabaseReuest(BaseContorller):
 
     def stop(self, req, database_id, body=None):
         body = body or {}
+        database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
@@ -184,6 +189,7 @@ class DatabaseReuest(BaseContorller):
 
     def status(self, req, database_id, body=None):
         body = body or {}
+        database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)

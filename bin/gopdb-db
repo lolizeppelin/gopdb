@@ -20,8 +20,6 @@ from goperation.manager import common as manager_common
 from gopdb import common
 from gopdb.api.client import GopDBClient
 
-BASECONF = cfg.ConfigOpts()
-
 CONF = cfg.CONF
 
 select_opts = [
@@ -72,6 +70,7 @@ create_base_opts = [
 
 one_opts = [
     cfg.IntOpt('database_id',
+               short='id',
                required=True,
                help='Target Database id'),
 ]
@@ -91,7 +90,15 @@ def client(session=None):
 
 def create():
     _clinet = client()
-    impl_opts = IMPL[BASECONF.impl]
+
+    BASECONF = cfg.ConfigOpts()
+    BASECONF.register_cli_opts(select_opts)
+    BASECONF(project='select')
+    impl = BASECONF.impl
+    BASECONF.reset()
+    del BASECONF
+
+    impl_opts = IMPL[impl]
 
     CONF.register_cli_opts(create_base_opts)
     CONF.register_cli_opts(impl_opts)
@@ -107,7 +114,19 @@ def create():
 
 
 def list():
+    BASECONF = cfg.ConfigOpts()
+    BASECONF.register_cli_opts(select_opts)
+    BASECONF(project='select')
+    impl = BASECONF.impl
+    BASECONF.reset()
+    del BASECONF
+
     cfg.set_defaults(select_opts, impl=None)
+
+    CONF.register_cli_opts(select_opts)
+    CONF.register_cli_opts(index_opts)
+    CONF(project='cmd')
+    _client = client()
 
     body = {}
     for opt in select_opts:
@@ -115,10 +134,6 @@ def list():
     for opt in index_opts:
         body.setdefault(opt.name, CONF[opt.name])
 
-    CONF.register_cli_opts(select_opts)
-    CONF.register_cli_opts(index_opts)
-    CONF(project='cmd')
-    _client = client()
 
     code, result, data = prepare_results(_client.databases_index(body=body))
     if code:
@@ -159,7 +174,7 @@ def show():
 
     print('\033[1;32;40m')
     print 'Database Status\t %d:OK\t %d:UNACTIVE' % (common.OK, common.UNACTIVE)
-    print 'id: %d' % database.get('agent_id')
+    print 'id: %d' % database.get('database_id')
     print 'impl: %s' % database.get('impl')
     print 'dbtype: %s' % database.get('dbtype')
     print 'version: %s' % database.get('dbversion')
@@ -227,8 +242,6 @@ def main():
         print 'use -h for help'
         sys.exit(1)
     func = eval(func)
-    BASECONF.register_cli_opts(select_opts)
-    BASECONF(project='select')
     logging.basicConfig(level=logging.WARN)
     CONF.register_cli_opts(client_opts)
     func()
