@@ -202,7 +202,7 @@ class SchemaReuest(BaseContorller):
 
     AUTHSCHEMA = {
         'type': 'object',
-        'required': ['user', 'passwd', 'ro_user', 'ro_passwd', 'source'],
+        'required': ['user', 'passwd', 'ro_user', 'ro_passwd'],
         'properties':
             {
                 'user': {'type': 'string'},

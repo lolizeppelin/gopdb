@@ -1,21 +1,13 @@
 #!/usr/bin/python
-import time
 import logging
 import sys
-import requests
 
 from simpleutil.config import cfg
-from simpleutil.config import types
 from simpleutil.utils import table
-from simpleutil.utils import timeutils
 
 from goperation.api.client.config import client_opts
 from goperation.api.client.config import index_opts
 from goperation.api.client import ManagerClient
-from goperation.api.client.utils import p_asyncrequest
-from goperation.api.client.utils import wait_finish
-
-from goperation.manager import common as manager_common
 
 from gopdb import common
 from gopdb.api.client import GopDBClient
@@ -54,6 +46,7 @@ create_base_opts = [
                help='Database type, defalut is mysql',
                ),
     cfg.IntOpt('affinity',
+               short='f',
                default=0,
                help='Database affinity mark, see endpoint for more',
                ),
@@ -91,36 +84,53 @@ def client(session=None):
 def create():
     _clinet = client()
 
-    BASECONF = cfg.ConfigOpts()
-    BASECONF.register_cli_opts(select_opts)
-    BASECONF(project='select')
-    impl = BASECONF.impl
-    BASECONF.reset()
-    del BASECONF
+    impl = ''
 
-    impl_opts = IMPL[impl]
+    impl_create_opts = IMPL[impl]
 
+    CONF.register_cli_opts(select_opts)
     CONF.register_cli_opts(create_base_opts)
-    CONF.register_cli_opts(impl_opts)
+    CONF.register_cli_opts(impl_create_opts)
     CONF(project='cmd')
 
+    if impl == 'local':
+        if CONF.passwd is None:
+            raise ValueError('Local database need passwd for root')
+
     body = {}
+    for opt in select_opts:
+        body.setdefault(opt.name, CONF[opt.name])
     for opt in create_base_opts:
         body.setdefault(opt.name, CONF[opt.name])
-
-    for opt in impl_opts:
+    for opt in impl_create_opts:
         body.setdefault(opt.name, CONF[opt.name])
-        # _clinet.databases_create(body=body)
+        _clinet.databases_create(body=body)
+
+
+def delete():
+    CONF.register_cli_opts(one_opts)
+    CONF(project='cmd')
+    _client = client()
+    code, result, data = prepare_results(_client.database_delete(CONF.agent))
+    if code:
+        print('\033[1;31;40m')
+        print 'Fail, code %d, result %s' % (code, result)
+        if data:
+            print data
+        print('\033[0m')
+        sys.exit(1)
+    database = data[0]
+    print('\033[1;32;40m')
+    print 'Delete database success'
+    print 'id: %d' % database.get('database_id')
+    print 'impl: %s' % database.get('impl')
+    print 'dbtype: %s' % database.get('dbtype')
+    print 'host: %s' % database.get('host')
+    print 'port: %d' % database.get('port')
+    print('\033[0m')
 
 
 def list():
-    BASECONF = cfg.ConfigOpts()
-    BASECONF.register_cli_opts(select_opts)
-    BASECONF(project='select')
-    impl = BASECONF.impl
-    BASECONF.reset()
-    del BASECONF
-
     cfg.set_defaults(select_opts, impl=None)
 
     CONF.register_cli_opts(select_opts)
@@ -133,7 +143,6 @@ def list():
         body.setdefault(opt.name, CONF[opt.name])
     for opt in index_opts:
         body.setdefault(opt.name, CONF[opt.name])
-
 
     code, result, data = prepare_results(_client.databases_index(body=body))
     if code:
@@ -181,19 +190,19 @@ def show():
     print 'status: %d' % database.get('status')
     print 'is_master: %d' % database.get('is_master')
     if slaves:
-        tb = table.PleasantTable(ident=8,
+        tb = table.PleasantTable(ident=0,
                                  columns=['slave_id', 'readonly'],
                                  counter=True)
         for salve in slaves:
             tb.add_row([salve.get('slave_id'), salve.get('readonly')])
         print tb.pformat()
     if schemas:
-        tb = table.PleasantTable(ident=8, columns=['schema_id', 'schema'], counter=True)
+        tb = table.PleasantTable(ident=0, columns=['schema_id', 'schema'], counter=True)
         for schema in schemas:
             tb.add_row([schema.get('schema_id'), schema.get('schema')])
         print tb.pformat()
     if quotes:
-        tb = table.PleasantTable(ident=8,
+        tb = table.PleasantTable(ident=0,
                                  columns=['endpoint', 'entity', 'schema_id', 'quote_id', 'desc'],
                                  counter=True)
         for quote in quotes:
@@ -218,27 +227,18 @@ def active():
             print data
         print('\033[0m')
         sys.exit(1)
-    agent = data[0]
-    metadata = agent.get('metadata')
     print('\033[1;32;40m')
     print 'Active database success'
-    print 'id: %d' % agent.get('agent_id')
-    print 'host: %s' % agent.get('host')
-    print 'type: %s' % agent.get('agent_type')
-    print 'zone: %s' % metadata.get('zone')
-    print 'local_ip: %s' % metadata.get('local_ip')
-    print 'external_ips: %s' % ','.join(metadata.get('external_ips'))
     print('\033[0m')
-
 
 
 def main():
     try:
         func = sys.argv.pop(1)
-        if func not in ('list', 'show', 'create', 'active'):
+        if func not in ('list', 'show', 'create', 'delete', 'active'):
             raise ValueError
     except (IndexError, ValueError):
-        print 'action is:  list status active status'
+        print 'action is:  list  create  active  delete  status  start  stop'
         print 'use -h for help'
         sys.exit(1)
     func = eval(func)

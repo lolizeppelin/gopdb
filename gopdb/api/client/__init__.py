@@ -143,7 +143,7 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def schemas_show(self, database_id, schema, body):
+    def schemas_show(self, database_id, schema, body=None):
         resp, results = self.get(action=self.schema_path % (str(database_id), schema), body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='get schema info from %s fail:%d' %

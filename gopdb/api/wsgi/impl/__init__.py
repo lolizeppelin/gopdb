@@ -492,6 +492,7 @@ class DatabaseManagerBase(object):
                                                                  GopSchema.database_id == database_id))
             squery = squery.options(joinedload(GopSchema.quotes, innerjoin=False))
             _schema = squery.one()
+            _result.setdefault('schema_id', _schema.schema_id)
             if _schema.quotes:
                 if unquotes != set([_quote.quote_id for _quote in _schema.quotes]):
                     raise exceptions.AcceptableSchemaError('Schema in quote, can not be delete')
