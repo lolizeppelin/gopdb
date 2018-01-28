@@ -178,11 +178,11 @@ def list():
             print data
         print('\033[0m')
         sys.exit(1)
-    schema_heads = ['database_id', 'schema_id', 'schema', 'charcter_set', 'collation_type']
+    schema_heads = ['database_id', 'schema_id', 'schema', 'character_set', 'collation_type']
     tb = table.PleasantTable(ident=0, columns=schema_heads, counter=True)
     for schema in data:
         tb.add_row([schema.get('database_id'), schema.get('schema_id'), schema.get('schema'),
-                    schema.get('charcter_set'), schema.get('collation_type')])
+                    schema.get('character_set'), schema.get('collation_type')])
     print tb.pformat()
 
 

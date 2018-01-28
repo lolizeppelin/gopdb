@@ -451,7 +451,7 @@ class DatabaseManagerBase(object):
                                    src_database, src_schema,
                                    dst_database, dst_schema,
                                    auths, **kwargs) as options:
-                charcter_set = options[0] or 'utf8'
+                character_set = options[0] or 'utf8'
                 collation_type = options[1]
                 gop_schema = GopSchema(schema=dst_schema,
                                        database_id=dst_database.database_id,
@@ -460,7 +460,7 @@ class DatabaseManagerBase(object):
                                        ro_user=auth.get('ro_user'),
                                        ro_passwd=auth.get('ro_passwd'),
                                        source=auth.get('source'),
-                                       character_set=charcter_set,
+                                       character_set=character_set,
                                        collation=collation_type)
                 session.add(gop_schema)
                 session.flush()

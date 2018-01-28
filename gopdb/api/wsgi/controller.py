@@ -257,7 +257,7 @@ class SchemaReuest(BaseContorller):
                                                     GopSchema.schema,
                                                     GopSchema.database_id,
                                                     GopSchema.schema,
-                                                    GopSchema.charcter_set,
+                                                    GopSchema.character_set,
                                                     GopSchema.collation_type,
                                                     ],
                                            counter=GopSchema.schema_id,
@@ -420,7 +420,7 @@ class SchemaReuest(BaseContorller):
         if body.get('schema', False):
             schema = schema_quote.schema
             data.setdefault('schema', dict(schema=schema.schema,
-                                           charcter_set=schema.charcter_set,
+                                           character_set=schema.character_set,
                                            collation_type=schema.collation_type))
         if body.get('database', False):
             database = schema_quote.database
