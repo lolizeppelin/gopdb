@@ -219,14 +219,7 @@ def show():
     print 'ro_user: %s' % schema.get('ro_user')
     print 'ro_passwd: %s' % schema.get('ro_passwd')
     if quotes:
-        tb = table.PleasantTable(ident=0,
-                                 columns=['quote_id', 'entity', 'endpoint', 'desc'],
-                                 counter=True)
-        for quote in quotes:
-            tb.add_row([quote.get('quote_id'), quote.get('entity'),
-                        quote.get('endpoint'), quote.get('desc')])
-        print tb.pformat()
-
+        print 'quotes: %s' % str(quotes)
     print('\033[0m')
 
 

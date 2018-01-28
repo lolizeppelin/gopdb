@@ -310,11 +310,12 @@ class DatabaseManagerBase(object):
 
     # ----------schema action-------------
 
-    def show_schema(self, database_id, schema, secret, **kwargs):
+    def show_schema(self, database_id, schema, **kwargs):
         """show schema info"""
         session = endpoint_session()
         query = model_query(session, GopSchema, filter=and_(GopSchema.database_id == database_id,
                                                             GopSchema.schema == schema))
+        secret = kwargs.pop('secret', False)
         show_quotes = kwargs.pop('quotes', False)
         if show_quotes:
             query = query.options(joinedload(GopSchema.quotes, innerjoin=False))

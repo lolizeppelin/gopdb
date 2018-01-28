@@ -285,11 +285,10 @@ class SchemaReuest(BaseContorller):
     def show(self, req, database_id, schema, body=None):
         body = body or {}
         database_id = int(database_id)
-        secret = body.get('secret', False)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
-        dbresult = dbmanager.show_schema(database_id, schema, secret, **kwargs)
+        dbresult = dbmanager.show_schema(database_id, schema, **kwargs)
         return resultutils.results(result='show schema success', data=[dbresult, ])
 
     def update(self, req, database_id, schema, body=None):

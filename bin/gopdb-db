@@ -183,6 +183,7 @@ def show():
 
     print('\033[1;32;40m')
     print 'Database Status\t %d:OK\t %d:UNACTIVE' % (common.OK, common.UNACTIVE)
+    print('\033[0m')
     print 'id: %d' % database.get('database_id')
     print 'impl: %s' % database.get('impl')
     print 'dbtype: %s' % database.get('dbtype')
@@ -210,8 +211,6 @@ def show():
                         quote.get('schema_id'), quote.get('quote_id'),
                         quote.get('desc')])
         print tb.pformat()
-
-    print('\033[0m')
 
 
 def active():
