@@ -19,14 +19,21 @@ select_opts = [
                short='m',
                default='local',
                choices=['local', 'record'],
-               help='Database impl type, default value is loacl where create',
+               help='Database impl type, default value is loacl',
                ),
+    cfg.StrOpt('zone',
+               default='all',
+               regex='^[a-z][a-z0-9]+$',
+               help='Agent zone mark'),
 ]
 
 create_local_opts = [
     cfg.IntOpt('agent',
-               required=True,
-               help='Database install agent id, value is int'),
+               help='Database install agent id, if not set, '
+                    'will auto select from zone'),
+    cfg.StrOpt('zone',
+               regex='^[a-z][a-z0-9]+$',
+               help='Agent zone mark'),
 ]
 
 create_record_opts = [

@@ -136,10 +136,27 @@ class DatabaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _create_database(self, session, database, **kwargs):
         req = kwargs.pop('req')
-        agent_id = kwargs.pop('agent_id')
-        zone = kwargs.pop('zone', 'all')
+        agent_id = kwargs.get('agent_id')
+        if not agent_id:
+            zone = kwargs.pop('zone', 'all')
+            if not zone:
+                raise InvalidArgument('Auto select database agent need zone')
+            includes = ['metadata.zone=%s' % zone,
+                        'metadata.agent_type=application',
+                        'disk>=500', 'free>=200']
+            weighters = [
+                {'iowait': 3},
+                {'free': 200},
+                {'left': 500},
+                {'cputime': 5},
+                {'cpu': -1},
+                {'process': None}]
+            chioces = entity_controller.chioces(common.DB, includes=includes, weighters=weighters)
+            if chioces:
+                agent_id = chioces[0]
+            else:
+                raise InvalidArgument('Not agent found for %s' % common.DB)
         body = dict(dbtype=database.dbtype,
-                    zone=zone,
                     auth=dict(user=database.user, passwd=database.passwd))
         body.update(kwargs)
         entity = entity_controller.create(req=req,
