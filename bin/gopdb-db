@@ -82,21 +82,31 @@ def client(session=None):
 
 
 def create():
-    _clinet = client()
-
-    impl = ''
+    _opt = select_opts[0]
+    prefixs = ['--%s' % _opt.name]
+    if _opt.short:
+        prefixs.append('-%s' % _opt.short)
+    choices = _opt.type.choices
+    index = 0
+    for i, arg in enumerate(sys.argv):
+        if arg in prefixs:
+            index = i + 1
+    if not index:
+        impl = _opt.default
+    else:
+        impl = sys.argv[index]
+    if impl not in choices:
+        raise ValueError('impl value not in %s' % choices)
 
     impl_create_opts = IMPL[impl]
-
     CONF.register_cli_opts(select_opts)
     CONF.register_cli_opts(create_base_opts)
     CONF.register_cli_opts(impl_create_opts)
     CONF(project='cmd')
-
     if impl == 'local':
         if CONF.passwd is None:
             raise ValueError('Local database need passwd for root')
-
+    _clinet = client()
     body = {}
     for opt in select_opts:
         body.setdefault(opt.name, CONF[opt.name])
@@ -217,7 +227,7 @@ def active():
     CONF.register_cli_opts(one_opts)
     CONF(project='cmd')
     _client = client()
-    code, result, data = prepare_results(_client.database_update(CONF.agent,
+    code, result, data = prepare_results(_client.database_update(CONF.database_id,
                                                                  body=dict(status=common.OK)))
     if code:
         print('\033[1;31;40m')
@@ -231,10 +241,65 @@ def active():
     print('\033[0m')
 
 
+def status():
+    CONF.register_cli_opts(one_opts)
+    CONF(project='cmd')
+    _client = client()
+    code, result, data = prepare_results(_client.database_status(CONF.database_id))
+    if code:
+        print('\033[1;31;40m')
+        print 'Fail, code %d, result %s' % (code, result)
+        if data:
+            print data
+        print('\033[0m')
+        sys.exit(1)
+    dbresult = data[0]
+    print('\033[1;32;40m')
+    print dbresult.get('result')
+    print('\033[0m')
+
+
+def start():
+    CONF.register_cli_opts(one_opts)
+    CONF(project='cmd')
+    _client = client()
+    code, result, data = prepare_results(_client.database_start(CONF.database_id))
+    if code:
+        print('\033[1;31;40m')
+        print 'Fail, code %d, result %s' % (code, result)
+        if data:
+            print data
+        print('\033[0m')
+        sys.exit(1)
+    dbresult = data[0]
+    print('\033[1;32;40m')
+    print dbresult.get('result')
+    print('\033[0m')
+
+
+def stop():
+    CONF.register_cli_opts(one_opts)
+    CONF(project='cmd')
+    _client = client()
+    code, result, data = prepare_results(_client.database_stop(CONF.database_id))
+    if code:
+        print('\033[1;31;40m')
+        print 'Fail, code %d, result %s' % (code, result)
+        if data:
+            print data
+        print('\033[0m')
+        sys.exit(1)
+    dbresult = data[0]
+    print('\033[1;32;40m')
+    print dbresult.get('result')
+    print('\033[0m')
+
+
+
 def main():
     try:
         func = sys.argv.pop(1)
-        if func not in ('list', 'show', 'create', 'delete', 'active'):
+        if func not in ('list', 'show', 'create', 'delete', 'active', 'start', 'stop', 'status'):
             raise ValueError
     except (IndexError, ValueError):
         print 'action is:  list  create  active  delete  status  start  stop'

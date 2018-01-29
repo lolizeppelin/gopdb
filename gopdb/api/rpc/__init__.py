@@ -345,9 +345,9 @@ class Application(AppEndpointBase):
         p = self._entity_process(entity)
         database_id = self.konwn_database[entity].get('database_id')
         if not p:
-            result = '%s %d(%d) not running' % (dbtype, entity, database_id)
+            result = '%s entity %d(database_id %d) not running' % (dbtype, entity, database_id)
         else:
-            result = '%s %d(%d) running at pid %d' % (dbtype, entity, database_id, p.pid)
+            result = '%s entity %d(database_id %d) running at pid %d' % (dbtype, entity, database_id, p.pid)
 
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
