@@ -206,7 +206,7 @@ class DatabaseManagerBase(object):
                 raise exceptions.AcceptableDbError('can not delete slave database from this api')
             if _database.schemas or _database.slaves:
                 raise exceptions.AcceptableDbError('can not delete database, slave or schema exist')
-            if model_count_with_key(session, SchemaQuote.database_id,
+            if model_count_with_key(session, SchemaQuote.qdatabase_id,
                                     filter=SchemaQuote.qdatabase_id == _database.database_id):
                 raise exceptions.AcceptableDbError('Database in schema quote list')
             with self._delete_database(session, _database, **kwargs) as address:

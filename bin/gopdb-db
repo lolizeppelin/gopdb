@@ -21,14 +21,11 @@ select_opts = [
                choices=['local', 'record'],
                help='Database impl type, default value is loacl',
                ),
-    cfg.StrOpt('zone',
-               default='all',
-               regex='^[a-z][a-z0-9]+$',
-               help='Agent zone mark'),
 ]
 
 create_local_opts = [
-    cfg.IntOpt('agent',
+    cfg.IntOpt('agent_id',
+               short='agent',
                help='Database install agent id, if not set, '
                     'will auto select from zone'),
     cfg.StrOpt('zone',
@@ -43,6 +40,10 @@ create_record_opts = [
     cfg.PortOpt('port',
                 default=3306,
                 help='Database instance port'),
+    cfg.StrOpt('zone',
+               default='all',
+               regex='^[a-z][a-z0-9]+$',
+               help='Agent zone mark defalut all'),
 ]
 
 IMPL = {'local': create_local_opts, 'record': create_record_opts}
@@ -113,7 +114,7 @@ def create():
     if impl == 'local':
         if CONF.passwd is None:
             raise ValueError('Local database need passwd for root')
-    _clinet = client()
+    _client = client()
     body = {}
     for opt in select_opts:
         body.setdefault(opt.name, CONF[opt.name])
@@ -121,7 +122,17 @@ def create():
         body.setdefault(opt.name, CONF[opt.name])
     for opt in impl_create_opts:
         body.setdefault(opt.name, CONF[opt.name])
-        _clinet.databases_create(body=body)
+    code, result, data = prepare_results(_client.databases_create(body=body))
+    database = data[0]
+    print('\033[1;32;40m')
+    print 'Delete database success'
+    print 'id: %d' % database.get('database_id')
+    print 'impl: %s' % impl
+    print 'dbtype: %s' % database.get('dbtype')
+    print 'affinity: %d' % database.get('affinity')
+    print 'host: %s' % database.get('host')
+    print 'port: %d' % database.get('port')
+    print('\033[0m')
 
 
 def delete():

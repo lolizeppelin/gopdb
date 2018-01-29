@@ -154,6 +154,7 @@ class DatabaseManager(DatabaseManagerBase):
             chioces = entity_controller.chioces(common.DB, includes=includes, weighters=weighters)
             if chioces:
                 agent_id = chioces[0]
+                LOG.info('Auto select  database agent %d' % agent_id)
             else:
                 raise InvalidArgument('Not agent found for %s' % common.DB)
         body = dict(dbtype=database.dbtype,
