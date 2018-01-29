@@ -136,7 +136,7 @@ class DatabaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _create_database(self, session, database, **kwargs):
         req = kwargs.pop('req')
-        agent_id = kwargs.get('agent_id')
+        agent_id = kwargs.pop('agent_id', None)
         if not agent_id:
             zone = kwargs.pop('zone', 'all')
             if not zone:
