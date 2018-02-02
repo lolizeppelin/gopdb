@@ -19,7 +19,7 @@ select_opts = [
                short='m',
                default='local',
                choices=['local', 'record'],
-               help='Database impl type, default value is loacl',
+               help='Database impl type, default value is local',
                ),
 ]
 
