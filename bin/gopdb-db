@@ -103,7 +103,7 @@ def create():
         impl = _opt.default
     else:
         impl = sys.argv[index]
-    if impl not in choices:
+    if choices and impl not in choices:
         raise ValueError('impl value not in %s' % choices)
 
     impl_create_opts = IMPL[impl]
