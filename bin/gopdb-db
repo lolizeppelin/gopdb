@@ -218,6 +218,7 @@ def show():
     print 'version: %s' % database.get('dbversion')
     print 'status: %d' % database.get('status')
     print 'is_master: %d' % database.get('is_master')
+    print 'reflection id: %d' % database.get('reflection_id')
     if slaves:
         tb = table.PleasantTable(ident=0,
                                  columns=['slave_id', 'readonly'],

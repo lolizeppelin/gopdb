@@ -140,6 +140,7 @@ class DatabaseManagerBase(object):
                        dbtype=_database.dbtype,
                        dbversion=_database.dbversion,
                        status=_database.status,
+                       reflection_id=_database.reflection_id,
                        is_master=_database.is_master,
                        schemas=[dict(schema=schema.schema,
                                      schema_id=schema.schema_id
