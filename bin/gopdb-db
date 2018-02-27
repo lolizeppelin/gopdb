@@ -71,7 +71,7 @@ create_base_opts = [
 
 one_opts = [
     cfg.IntOpt('database_id',
-               short='id',
+               short='d',
                required=True,
                help='Target Database id'),
 ]
@@ -218,7 +218,7 @@ def show():
     print 'version: %s' % database.get('dbversion')
     print 'status: %d' % database.get('status')
     print 'is_master: %d' % database.get('is_master')
-    print 'reflection id: %d' % database.get('reflection_id')
+    print 'reflection id: %s' % database.get('reflection_id')
     if slaves:
         tb = table.PleasantTable(ident=0,
                                  columns=['slave_id', 'readonly'],

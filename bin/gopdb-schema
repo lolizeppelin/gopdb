@@ -10,7 +10,8 @@ from goperation.api.client.config import client_opts
 from goperation.api.client.config import index_opts
 from goperation.api.client import ManagerClient
 
-from gopdb import common
+from goperation.api.client.utils import prepare_results
+
 from gopdb.api.client import GopDBClient
 
 CONF = cfg.CONF
@@ -46,7 +47,7 @@ auth_opts = [
 
 one_opts = [
     cfg.IntOpt('database_id',
-               short='id',
+               short='d',
                required=True,
                help='Target Database id'),
     cfg.StrOpt('schema',
@@ -58,16 +59,10 @@ one_opts = [
 del_opts = [
     cfg.ListOpt('unquotes',
                 short='q',
-                item_type=types.Integer,
-                help='Delete schema with quotes(delete quotes before delete schema)'),
-
+                item_type=types.Integer(),
+                help='Delete schema with quotes(delete quotes before delete schema)')
 ]
 
-
-def prepare_results(r):
-    if r is None:
-        raise ValueError('Resulst is None')
-    return r.get('resultcode'), r.get('result'), r.get('data')
 
 
 def client(session=None):
@@ -99,7 +94,7 @@ def create():
             options.setdefault('collation_type', CONF.collation_type)
         body.setdefault('options', options)
 
-    code, result, data = prepare_results(_client.schemas_create(CONF.database_id, body=body))
+    code, result, data = prepare_results(_client.schemas_create, CONF.database_id, body=body)
     if code:
         print('\033[1;31;40m')
         print 'Fail, code %d, result %s' % (code, result)
@@ -131,8 +126,8 @@ def delete():
     body = None
     if CONF.unquotes:
         body = dict(unquotes=CONF.unquotes)
-    code, result, data = prepare_results(_client.schemas_delete(CONF.database_id, CONF.schema,
-                                                                body=body))
+    code, result, data = prepare_results(_client.schemas_delete, CONF.database_id, CONF.schema,
+                                         body=body)
     if code:
         print('\033[1;31;40m')
         print 'Fail, code %d, result %s' % (code, result)
@@ -169,8 +164,9 @@ def list():
     for opt in index_opts:
         body.setdefault(opt.name, CONF[opt.name])
 
-    code, result, data = prepare_results(_client.schemas_index(database_id=CONF.database_id,
-                                                               body=body))
+    code, result, data = prepare_results(_client.schemas_index,
+                                         database_id=CONF.database_id,
+                                         body=body)
     if code:
         print('\033[1;31;40m')
         print 'Fail, code %d, result %s' % (code, result)
@@ -191,9 +187,9 @@ def show():
     CONF(project='cmd')
 
     _client = client()
-    code, result, data = prepare_results(_client.schemas_show(CONF.database_id,
-                                                              schema=CONF.schema,
-                                                              body=dict(secret=True, quotes=True)))
+    code, result, data = prepare_results(_client.schemas_show, CONF.database_id,
+                                         schema=CONF.schema,
+                                         body=dict(secret=True, quotes=True))
     if code:
         print('\033[1;31;40m')
         print 'Fail, code %d, result %s' % (code, result)
@@ -224,12 +220,13 @@ def show():
 
 
 def main():
+    FUNCS = ['list', 'create', 'show', 'delete']
     try:
         func = sys.argv.pop(1)
-        if func not in ('list', 'show', 'create', 'delete'):
+        if func not in FUNCS:
             raise ValueError
     except (IndexError, ValueError):
-        print 'action is:  list status active status'
+        print 'action is: %s' % '  '.join(FUNCS)
         print 'use -h for help'
         sys.exit(1)
     func = eval(func)
