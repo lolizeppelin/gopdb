@@ -60,7 +60,7 @@ class DatabaseManager(DatabaseManagerBase):
         # 排序规则
         weighters = [{'iowait': 3},
                      {'cputime': 5},
-                     {'free': 200},
+                     {'free': -200},
                      {'cpu': -1},
                      {'left': -300},
                      {'process': None}]
