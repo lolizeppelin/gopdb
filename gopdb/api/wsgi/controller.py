@@ -451,8 +451,8 @@ class SchemaReuest(BaseContorller):
                               GopSchema.character_set,
                               GopSchema.collation_type,
                               ).join(GopSchema, and_(GopSchema.schema_id == SchemaQuote.schema_id))
-        query.filter(and_(SchemaQuote.endpoint == endpoint,
-                          SchemaQuote.entity.in_(entitys)))
+        query = query.filter(and_(SchemaQuote.endpoint == endpoint,
+                                  SchemaQuote.entity.in_(entitys)))
         quotes = []
         database_ids = set()
         for quote in query:
