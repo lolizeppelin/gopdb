@@ -13,16 +13,16 @@ def mysql_privileges(auth):
                  'source': auth.get('source') or '%',
                  'privileges': common.ALLPRIVILEGES},
                 {'user': auth.get('ro_user'), 'passwd': auth.get('ro_passwd'),
-                 'source': auth.get('source') or '%',
+                 'source': auth.get('rosource') or '%',
                  'privileges': common.READONLYPRIVILEGES}]
     elif isinstance(auth, GopSchema):
         return [{'user': auth.user,
                  'passwd': auth.passwd,
-                 'source': auth.source,
+                 'source': auth.source or '%',
                  'privileges': common.ALLPRIVILEGES},
                 {'user': auth.ro_user,
                  'passwd': auth.ro_passwd,
-                 'source': auth.source,
+                 'source': auth.rosource or '%',
                  'privileges': common.READONLYPRIVILEGES}]
     else:
         raise TypeError

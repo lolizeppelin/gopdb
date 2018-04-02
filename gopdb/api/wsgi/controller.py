@@ -210,6 +210,7 @@ class SchemaReuest(BaseContorller):
                 'ro_user': {'type': 'string'},
                 'ro_passwd': {'type': 'string'},
                 'source': {'type': 'string'},
+                'rosource': {'type': 'string'},
             }
     }
 

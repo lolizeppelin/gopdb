@@ -385,7 +385,8 @@ class DatabaseManagerBase(object):
                                        passwd=auth.get('passwd'),
                                        ro_user=auth.get('ro_user'),
                                        ro_passwd=auth.get('ro_passwd'),
-                                       source=auth.get('source'),
+                                       source=auth.get('source', '%'),
+                                       rosource=auth.get('rosource', '%'),
                                        character_set=options.get('character_set'),
                                        collation_type=options.get('collation_type'))
                 session.add(gop_schema)
