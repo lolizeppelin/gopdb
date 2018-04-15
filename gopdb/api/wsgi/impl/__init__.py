@@ -376,7 +376,7 @@ class DatabaseManagerBase(object):
                 raise exceptions.AcceptableDbError('Database affinity not match')
             schemas = [_schema.schema for _schema in _database.schemas]
             if schema in schemas:
-                raise exceptions.AcceptableDbError('Duplicate schema name Duplicate')
+                raise exceptions.AcceptableDbError('Duplicate schema name %s' % schema)
             options = options or {'character_set': 'utf8'}
             with self._create_schema(session, _database, schema, auths, options, **kwargs) as address:
                 gop_schema = GopSchema(schema=schema,
