@@ -288,6 +288,8 @@ class DatabaseManager(DatabaseManagerBase):
         req = kwargs.pop('req')
         try:
             local_ip, port = self._get_entity(req, int(database.reflection_id))
+            if local_ip == 'unkonwn' or port == 0:
+                raise exceptions.AcceptableDbError('Database not online')
             connection = connformater % dict(user=database.user, passwd=database.passwd,
                                              host=local_ip, port=port, schema=schema)
             engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
@@ -297,7 +299,8 @@ class DatabaseManager(DatabaseManagerBase):
                                 connection_timeout=3)
             yield local_ip, port
         except Exception:
-            LOG.exception('Create schema fail')
+            if LOG.isEnabledFor(logging.DEBUG):
+                LOG.exception('Create schema fail')
             raise
 
     @contextlib.contextmanager
