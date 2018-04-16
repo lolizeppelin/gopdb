@@ -397,7 +397,7 @@ class SchemaReuest(BaseContorller):
         with session.begin():
             schema_quote = query.one()
             query.delete()
-        return resultutils.results(result='unquote from %s.%d success' % (schema_quote.database_id,
+        return resultutils.results(result='unquote from %s.%d success' % (schema_quote.qdatabase_id,
                                                                           schema_quote.schema_id,),
                                    data=[dict(quote_id=schema_quote.quote_id,
                                               schema_id=schema_quote.schema_id,
