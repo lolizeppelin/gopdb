@@ -70,12 +70,10 @@ class DatabaseManager(DatabaseManagerBase):
         host = attributes.validators['type:hostname_or_ip'](kwargs.get('host'))
         port = attributes.validators['type:port'](kwargs.get('port'))
         extinfo = kwargs.get('extinfo')
-        desc = kwargs.get('desc')
         _record = RecordDatabase(host=host, zone=zone, port=port, extinfo=extinfo)
         session.add(_record)
         session.flush()
         database.impl = 'record'
-        database.desc = desc
         database.status = common.OK
         database.reflection_id = str(_record.record_id)
         yield host, port
