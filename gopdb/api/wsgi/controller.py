@@ -1,3 +1,4 @@
+# -*- coding:utf-8 -*-
 import re
 import webob.exc
 
@@ -62,6 +63,23 @@ endpoint_controller = EndpointReuest()
 
 @singleton.singleton
 class DatabaseReuest(BaseContorller):
+    CREATEDATABASE = {'type': 'object',
+                      'required': ['impl', 'dbtype', 'user', 'passwd', 'slave'],
+                      'properties': {
+                          'impl': {'type': 'string', 'description': '实现方式'},
+                          'dbtype': {'type': 'string', 'description': '数据库类型,目前支持mysql'},
+                          'user': {'type': 'string', 'description': '数据库root用户名'},
+                          'passwd': {'type': 'string', 'description': '数据库root密码'},
+                          'slave': {'type': 'integer', 'description': '0表示主库, >0 表示从库可以接受的主库数量'},
+                          'bond': {'type': 'integer', 'description': '表示要绑定的从库ID'},
+                          'dbversion': {'type': 'object', 'description': '数据库版本'},
+                          'affinity': {'type': 'integer', 'description': '数据库亲和性数值'},
+                          'agent_id': {'type': 'integer', 'minimum': 1,
+                                       'description': '数据库实例安装的目标机器,不填自动分配'},
+                          'zone': {'type': 'string', 'description': '自动分配的安装区域,默认zone为all'},}
+                      }
+
+
 
     def reflect(self, req, impl, body=None):
         body = body or {}
@@ -91,12 +109,13 @@ class DatabaseReuest(BaseContorller):
             _filter = GopDatabase.impl == impl
 
         columns=[GopDatabase.database_id,
-                 GopDatabase.is_master,
+                 GopDatabase.slave,
                  GopDatabase.impl,
                  GopDatabase.dbtype,
                  GopDatabase.dbversion,
                  GopDatabase.reflection_id,
                  GopDatabase.status,
+                 GopDatabase.affinity,
                  GopDatabase.desc]
 
         option = None
@@ -122,15 +141,17 @@ class DatabaseReuest(BaseContorller):
 
     def create(self, req, body=None):
         body = body or {}
-        try:
-            impl = body.pop('impl')
-            dbtype = body.pop('dbtype')
-            user = body.pop('user')
-            passwd = body.pop('passwd')
-            dbversion = body.pop('dbversion', None)
-        except KeyError as e:
-            raise InvalidArgument('miss key: %s' % e.message)
+        jsonutils.schema_validate(body, self.CREATEDATABASE)
+        impl = body.pop('impl')
+        dbtype = body.pop('dbtype')
+        user = body.pop('user')
+        passwd = body.pop('passwd')
+        dbversion = body.pop('dbversion', None)
         affinity = body.pop('affinity', 0)
+        if body.get('slave'):
+            if body.get('bond'):
+                raise InvalidArgument('Slave database can not bond to another database ')
+            affinity = 0
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = utils.impl_cls('wsgi', impl)
@@ -148,11 +169,14 @@ class DatabaseReuest(BaseContorller):
 
     def update(self, req, database_id, body=None):
         body = body or {}
+        status = body.get('status', common.UNACTIVE)
+        if status not in (common.UNACTIVE, common.OK):
+            raise InvalidArgument('Status value error')
         database_id = int(database_id)
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
         with session.begin():
-            updata = {'status': body.get('status', common.UNACTIVE)}
+            updata = {'status': status}
             if body.get('dbversion'):
                 updata.setdefault('dbversion', body.get('dbversion'))
             count = query.update(updata)
@@ -162,11 +186,12 @@ class DatabaseReuest(BaseContorller):
 
     def delete(self, req, database_id, body=None):
         body = body or {}
+        master = body.pop('master', False)
         database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
-        dbresult = dbmanager.delete_database(database_id, **kwargs)
+        dbresult = dbmanager.delete_database(database_id, master, **kwargs)
         return resultutils.results(result='delete database success', data=[dbresult, ])
 
     def start(self, req, database_id, body=None):
@@ -339,7 +364,7 @@ class SchemaReuest(BaseContorller):
             entity_info = entity_controller.show(req=req, endpoint=endpoint, entity=entity)['data'][0]
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id == database_id,
-                                                              GopDatabase.is_master == True))
+                                                              GopDatabase.slave == 0))
         query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
         _database = query.one()
         _schema = None
@@ -426,7 +451,7 @@ class SchemaReuest(BaseContorller):
             database = schema_quote.database
             data.setdefault('database', dict(impl=database.impl,
                                              reflection_id=database.reflection_id,
-                                             is_master=database.is_master,
+                                             slave=database.slave,
                                              dbtype=database.dbtype,
                                              dbversion=database.dbversion))
         return resultutils.results(result='get quote success', data=[data, ])

@@ -217,7 +217,7 @@ def show():
     print 'dbtype: %s' % database.get('dbtype')
     print 'version: %s' % database.get('dbversion')
     print 'status: %d' % database.get('status')
-    print 'is_master: %d' % database.get('is_master')
+    print 'slave: %d' % database.get('slave')
     print 'reflection id: %s' % database.get('reflection_id')
     if slaves:
         tb = table.PleasantTable(ident=0,

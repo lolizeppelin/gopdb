@@ -84,8 +84,9 @@ class GopDatabase(TableBase):
     status = sa.Column(TINYINT, default=common.UNACTIVE, nullable=False)
     # bitwise operation for affinity
     affinity = sa.Column(TINYINT, default=0, nullable=False)
+    # 0 means a master database
+    slave = sa.Column(TINYINT(unsigned=True), default=0, nullable=False)
     desc = sa.Column(VARCHAR(256), nullable=True)
-    is_master = sa.Column(BOOLEAN, nullable=False, default=True)
     slaves = orm.relationship(GopSalveRelation, lazy='select',
                               cascade='delete,delete-orphan')
     schemas = orm.relationship(GopSchema, backref='database', lazy='select',

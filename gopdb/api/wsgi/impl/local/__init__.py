@@ -25,6 +25,7 @@ from gopdb.api.wsgi import exceptions
 from gopdb.api.wsgi.impl import DatabaseManagerBase
 from gopdb.api.wsgi.impl import privilegeutils
 from gopdb.models import GopDatabase
+from gopdb.models import GopSalveRelation
 
 
 LOG = logging.getLogger(__name__)
@@ -33,16 +34,76 @@ entity_controller = EntityReuest()
 
 
 class DatabaseManager(DatabaseManagerBase):
+    def _bond_slave(self, req,
+                    master, master_host, master_port,
+                    slave, slave_host, slave_port,
+                    repl):
+        if master_host == slave_host:
+            raise exceptions.UnAcceptableDbError('Master and Salve in same host')
+        try:
+            # master do
+            connection = connformater % dict(user=master.user, passwd=master.passwd,
+                                             host=master_host, port=master_port, schema='')
+            engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
+            with engine.connect() as conn:
+                LOG.info('Login master database to get pos and file')
+                r = conn.execute('show master status')
+                results = r.fetchall()
+                r.close()
+            if not results:
+                raise exceptions.UnAcceptableDbError('Master bind log not open!')
+            binlog = results[0]
+            if binlog.get('file')[-1] != '1' or binlog.get('position') > 1000:
+                raise exceptions.UnAcceptableDbError('Database pos of file error')
+            # slave do
+            slave_info = dict(replname='database-%d' % master.database_id,
+                              host=master_host, port=master_port,
+                              repluser=repl.get('user'), replpasswd=repl.get('passwd'),
+                              file=binlog.get('file'), pos=binlog.get('position'))
+            sqls = ['SHOW SLAVE STATUS']
+            sqls.append("CHANGE MASTER '%(replname)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
+                        "MASTER_USER='%(repluser)s',MASTER_PASSWORD='%(replpasswd)s'," \
+                        "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(pos)s)" % slave_info)
+            sqls.append('START salve %(replname)s' % slave_info)
 
-    def _get_entity(self, req, entity):
+            connection = connformater % dict(user=slave.user, passwd=slave.passwd,
+                                             host=slave_host, port=slave_port, schema='')
+            engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
+            with engine.connect() as conn:
+                LOG.info('Login slave database for init')
+                r = conn.execute(sqls[0])
+                if LOG.isEnabledFor(logging.DEBUG):
+                    for row in r.fetchall():
+                        LOG.debug(str(row))
+                r.close()
+                r = conn.execute(sqls[1])
+                r.close()
+                LOG.debug('Success add repl info')
+                try:
+                    r = conn.execute(sqls[2])
+                except Exception:
+                    LOG.error('Start slave fail')
+                    raise exceptions.UnAcceptableDbError('Start slave fail')
+                else:
+                    r.close()
+        except Exception:
+            if LOG.isEnabledFor(logging.DEBUG):
+                LOG.exception('Bond slave fail')
+            raise exceptions.UnAcceptableDbError('Call slave start repl fail')
+
+    def _get_entity(self, req, entity, raise_error=False):
         _entity = entity_controller.show(req=req, entity=entity,
                                          endpoint=common.DB, body={'ports': True})['data'][0]
         port = _entity['ports'][0] if _entity['ports'] else -1
         metadata = _entity['metadata']
         if not metadata:
+            if raise_error:
+                raise InvalidArgument('Target entity is offline')
             local_ip = 'unkonwn'
         else:
             local_ip = metadata.get('local_ip')
+        if port < 0 and raise_error:
+            raise InvalidArgument('Target entity no port now')
         return local_ip, port
 
     def _select_database(self, session, query, dbtype, **kwargs):
@@ -51,19 +112,28 @@ class DatabaseManager(DatabaseManagerBase):
         free = kwargs.pop('memory', 1000)
         zone = kwargs.pop('zone', 'all')
         cpu = kwargs.pop('cpu', 2)
+        affinity = 0
+        if kwargs.pop('master', True):
+            affinity = affinity | 1
+        if kwargs.pop('slave', False):
+            affinity = affinity | 2
         # 包含规则
         includes = ['metadata.zone=%s' % zone,
                     'metadata.agent_type=application',
+                    'metadata.gopdb-aff&%d' % affinity,
                     'metadata.%s!=None' % dbtype,
                     'metadata.%s>=5.5' % dbtype,
                     'disk>=%d' % disk, 'free>=%d' % free, 'cpu>=%d' % cpu]
         # 排序规则
-        weighters = [{'iowait': 3},
-                     {'cputime': 5},
-                     {'free': -200},
-                     {'cpu': -1},
-                     {'left': -300},
-                     {'process': None}]
+        weighters = [
+            {'iowait': 3},
+            {'cputime': 5},
+            {'free': -200},
+            {'cpu': -1},
+            {'left': -300},
+            {'metadata.gopdb-aff': None},
+            {'process': None}
+        ]
         result = []
 
         def _chioces():
@@ -134,15 +204,20 @@ class DatabaseManager(DatabaseManagerBase):
         yield self._get_entity(req, int(database.reflection_id))
 
     @contextlib.contextmanager
-    def _create_database(self, session, database, **kwargs):
+    def _create_database(self, session, database, bond, **kwargs):
         req = kwargs.pop('req')
         agent_id = kwargs.pop('agent_id', None)
+        if database.slave:
+            type_affinity = 2
+        else:
+            type_affinity = 1
         if not agent_id:
             zone = kwargs.pop('zone', 'all')
             if not zone:
                 raise InvalidArgument('Auto select database agent need zone')
             includes = ['metadata.zone=%s' % zone,
                         'metadata.agent_type=application',
+                        'metadata.gopdb-aff&%d' % type_affinity,
                         'disk>=500', 'free>=200']
             weighters = [
                 {'iowait': 3},
@@ -150,6 +225,7 @@ class DatabaseManager(DatabaseManagerBase):
                 {'left': 500},
                 {'cputime': 5},
                 {'cpu': -1},
+                {'metadata.gopdb-aff': None},
                 {'process': None}]
             chioces = entity_controller.chioces(common.DB, includes=includes, weighters=weighters)
             if chioces:
@@ -159,7 +235,19 @@ class DatabaseManager(DatabaseManagerBase):
                 raise InvalidArgument('Not agent found for %s' % common.DB)
         body = dict(dbtype=database.dbtype,
                     auth=dict(user=database.user, passwd=database.passwd))
+        configs = kwargs.pop('configs', {})
         body.update(kwargs)
+        if database.slave:
+            configs['relaylog'] = True
+        if bond:
+            _host, _port = self._get_entity(req=req, entity=int(bond.reflection_id))
+            repl = privilegeutils.mysql_replprivileges(bond, _host)
+            configs['binlog'] = True
+            _slave = {
+                'repl': repl,
+                'configs': configs,
+            }
+            body.update(_slave)
         entity = entity_controller.create(req=req,
                                           agent_id=agent_id,
                                           endpoint=common.DB,
@@ -167,7 +255,23 @@ class DatabaseManager(DatabaseManagerBase):
         database.impl = 'local'
         database.status = common.UNACTIVE
         database.reflection_id = str(entity)
-        yield self._get_entity(req=req, entity=entity)
+        host, port = self._get_entity(req=req, entity=int(bond.reflection_id), raise_error=True)
+
+        if bond:
+            try:
+                self._bond_slave(req,
+                                 database, host, port,
+                                 bond, _host, _port,
+                                 repl)
+            except Exception:
+                self._stop_database(database)
+                with self._delete_database(session, database):
+                    LOG.info('Delete database success')
+                raise
+            else:
+                session.add(GopSalveRelation(database.database_id, bond.database_id))
+                session.flush()
+        yield host, port
 
     def _esure_create(self, database, **kwargs):
         entity_controller.post_create_entity(entity=int(database.reflection_id),
@@ -177,7 +281,7 @@ class DatabaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _delete_database(self, session, database, **kwargs):
         req = kwargs.pop('req')
-        local_ip, port = self._get_entity(req=req, entity=int(database.reflection_id))
+        local_ip, port = self._get_entity(req=req, entity=int(database.reflection_id), raise_error=True)
         token = uuidutils.generate_uuid()
         entity_controller.delete(req=req, endpoint=common.DB, entity=int(database.reflection_id),
                                  body=dict(token=token))
@@ -186,7 +290,7 @@ class DatabaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _delete_slave_database(self, session, slave, masters, **kwargs):
         req = kwargs.pop('req')
-        local_ip, port = self._get_entity(req, int(slave.reflection_id))
+        local_ip, port = self._get_entity(req, int(slave.reflection_id), raise_error=True)
         entity_controller.delete(req=req, endpoint=common.DB, entity=int(slave.reflection_id))
         try:
             yield local_ip, port
@@ -346,5 +450,3 @@ class DatabaseManager(DatabaseManagerBase):
         utils.drop_schema(engine, dropauths)
         yield local_ip, port
 
-    def _create_slave_database(self, *args, **kwargs):
-        raise NotImplementedError

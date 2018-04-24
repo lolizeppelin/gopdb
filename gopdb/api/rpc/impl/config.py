@@ -9,7 +9,11 @@ db_opts = [
                help='local database login admin name'),
     cfg.StrOpt('localpass',
                default='gopdb',
-               help='local database admin password')
+               help='local database admin password'),
+    cfg.IntOpt('affinity',
+               default=1,
+               min=1, max=3,
+               help='local database admin password, 1 master, 2 slave,  3 both ok')
 ]
 
 

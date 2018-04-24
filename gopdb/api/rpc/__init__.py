@@ -77,6 +77,7 @@ class Application(AppEndpointBase):
     def pre_start(self, external_objects):
         super(AppEndpointBase, self).pre_start(external_objects)
         external_objects.update(common.VERSIONMAP)
+        external_objects.update({'gopdb-aff': CONF[common.DB].affinity})
 
     def post_start(self):
         super(Application, self).post_start()

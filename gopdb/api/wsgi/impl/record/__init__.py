@@ -65,7 +65,7 @@ class DatabaseManager(DatabaseManagerBase):
         yield _record.host, _record.port
 
     @contextlib.contextmanager
-    def _create_database(self, session, database, **kwargs):
+    def _create_database(self, session, database, bond, **kwargs):
         zone = kwargs.get('zone', 'all')
         host = attributes.validators['type:hostname_or_ip'](kwargs.get('host'))
         port = attributes.validators['type:port'](kwargs.get('port'))
@@ -75,7 +75,11 @@ class DatabaseManager(DatabaseManagerBase):
         session.flush()
         database.impl = 'record'
         database.status = common.OK
+        database.slave = kwargs.get('slave')
         database.reflection_id = str(_record.record_id)
+        if bond and bond.passwd and database.passwd:
+            # TODO add privileges for master and star slave
+            pass
         yield host, port
 
     @contextlib.contextmanager
@@ -209,7 +213,3 @@ class DatabaseManager(DatabaseManagerBase):
                 dropauths = privilegeutils.mysql_privileges(schema)
             utils.drop_schema(engine, dropauths)
         yield host, port
-
-
-    def _create_slave_database(self, *args, **kwargs):
-        raise NotImplementedError

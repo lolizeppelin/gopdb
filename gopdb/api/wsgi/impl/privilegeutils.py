@@ -2,6 +2,7 @@ from sqlalchemy.pool import NullPool
 from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.argformater import noschemaconn
 from simpleservice.ormdb.tools import utils
+from simpleutil.common.exceptions import InvalidArgument
 
 from gopdb import common
 
@@ -29,6 +30,8 @@ def mysql_privileges(auth):
 
 
 def mysql_drop_replprivileges(master, slave, host, port):
+    if host == 'unkonwn':
+        raise InvalidArgument('Slave not on line')
     _connection = noschemaconn % dict(user=master.user, passwd=master.passwd,
                                       host=host, port=port)
     engine = create_engine(_connection, thread_checkin=False,
@@ -37,3 +40,12 @@ def mysql_drop_replprivileges(master, slave, host, port):
                 passwd='repl-%s' % slave.passwd,
                 source=host, privileges=common.REPLICATIONRIVILEGES)
     utils.drop_privileges(engine, auths=[auth, ])
+
+
+def mysql_replprivileges(slave, host):
+    if host == 'unkonwn':
+        raise InvalidArgument('Slave not on line')
+    auth = dict(user='repluser-%d' % slave.database_id,
+                passwd='repl-%s' % slave.passwd,
+                source=host, privileges=common.REPLICATIONRIVILEGES)
+    return auth

@@ -8,6 +8,7 @@ from sqlalchemy.sql import and_
 from sqlalchemy.sql import or_
 
 from simpleutil.utils import argutils
+from simpleutil.common.exceptions import InvalidArgument
 from simpleservice.ormdb.api import model_count_with_key
 from simpleservice.ormdb.api import model_query
 
@@ -121,38 +122,49 @@ class DatabaseManagerBase(object):
     def show_database(self, database_id, **kwargs):
         """show database info"""
         session = endpoint_session(readonly=True)
+        quotes = kwargs.pop('quotes')
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
         _database = query.one()
-        if _database.is_master:
-            schemas = _database.schemas
-        else:
+        if _database.slave:
             # slave will find  masters schemas to show
             master_ids = model_query(session, GopSalveRelation.master_id,
                                      filter=GopDatabase.slave_id == database_id).all()
             query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id.in_(master_ids),
-                                                                  GopDatabase.is_master == False))
+                                                                  GopDatabase.slave > 0))
             query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
             schemas = []
             for m_database in query.all():
                 schemas.extend(m_database.schemas)
+        else:
+            schemas = _database.schemas
+
+        if quotes:
+            quotes = [dict(entity=quote.entity,
+                           endpoint=quote.endpoint,
+                           quote_id=quote.quote_id,
+                           schema_id=quote.schema_id)
+                      for quote in _database.quotes]
+        else:
+            quotes = []
+
         _result = dict(database_id=database_id,
                        impl=_database.impl,
                        dbtype=_database.dbtype,
                        dbversion=_database.dbversion,
                        status=_database.status,
                        reflection_id=_database.reflection_id,
-                       is_master=_database.is_master,
+                       slave=_database.slave,
+                       affinity=_database.affinity,
                        schemas=[dict(schema=schema.schema,
                                      schema_id=schema.schema_id
                                      ) for schema in schemas],
-                       quotes=[dict(entity=quote.entity,
-                                    endpoint=quote.endpoint,
-                                    quote_id=quote.quote_id,
-                                    schema_id=quote.schema_id)
-                               for quote in _database.quotes])
-        if _database.is_master:
+                       quotes=quotes)
+        if _database.slave:
+            _result.setdefault('masters', master_ids)
+        else:
             # show master database slaves
             _result.setdefault('slaves', _database.slaves)
+
         with self._show_database(session, _database, **kwargs) as address:
             host = address[0]
             port = address[1]
@@ -168,19 +180,30 @@ class DatabaseManagerBase(object):
         """create new database intance"""
         session = endpoint_session()
         with session.begin():
-            _database = GopDatabase(user=user, passwd=passwd, is_master=True,
+            bond = kwargs.pop('bond', None)
+            if bond:
+                query = model_query(session, GopDatabase, filter=GopDatabase.database_id == bond)
+                bond = query.one_or_none()
+                if not bond:
+                    raise InvalidArgument('Target slave databse can not be found, can not bond to slave databases')
+                if not bond.slave:
+                    raise InvalidArgument('Target database is not Salve database')
+                count = model_count_with_key(session, GopSalveRelation,
+                                             filter=GopSalveRelation.slave_id == bond.database_id)
+                if count >= bond.slave:
+                    raise InvalidArgument('Target slave database is full')
+            _database = GopDatabase(user=user, passwd=passwd, slave=kwargs.pop('slave'),
                                     dbtype=dbtype, dbversion=dbversion, affinity=affinity,
                                     desc=kwargs.pop('desc', None))
             _result = dict(dbversion=_database.dbversion,
+                           slave=_database.slave,
                            dbtype=_database.dbtype)
-            with self._create_database(session, _database, **kwargs) as address:
+            with self._create_database(session, _database, bond, **kwargs) as address:
                 host = address[0]
                 port = address[1]
                 _result.setdefault('host', host)
                 _result.setdefault('port', port)
                 _result.setdefault('affinity', affinity)
-                if not _database.is_master:
-                    raise exceptions.UnAcceptableDbError('Can not add slave database from api create database')
                 session.add(_database)
                 session.flush()
         self._esure_create(_database, **kwargs)
@@ -188,76 +211,67 @@ class DatabaseManagerBase(object):
         return _result
 
     @abc.abstractmethod
-    def _create_database(self, session, database, **kwargs):
+    def _create_database(self, session, database, bond, **kwargs):
         """impl create code"""
 
     def _esure_create(self, database, **kwargs):
         """impl esure create result"""
 
-    def delete_database(self, database_id, **kwargs):
+    def delete_database(self, database_id, master, **kwargs):
         """delete master database intance"""
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
-        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
+        if master:
+            query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
+        else:
+            query = query.options(joinedload(GopDatabase.quotes, innerjoin=False))
+
         with session.begin():
             _database = query.one()
-            _result = dict(database_id=_database.database_id, impl=_database.impl, dbtype=_database.dbtype,
+            _result = dict(database_id=_database.database_id, slave=_database.slave,
+                           impl=_database.impl, dbtype=_database.dbtype,
                            dbversion=_database.dbversion)
-            if not _database.is_master:
-                raise exceptions.AcceptableDbError('can not delete slave database from this api')
-            if _database.schemas or _database.slaves:
-                raise exceptions.AcceptableDbError('can not delete database, slave or schema exist')
-            if model_count_with_key(session, SchemaQuote.qdatabase_id,
-                                    filter=SchemaQuote.qdatabase_id == _database.database_id):
-                raise exceptions.AcceptableDbError('Database in schema quote list')
-            with self._delete_database(session, _database, **kwargs) as address:
-                host = address[0]
-                port = address[1]
-                _result.setdefault('host', host)
-                _result.setdefault('port', port)
-                query.delete()
+            # 删除主库
+            if master:
+                if _database.slave:
+                    raise exceptions.AcceptableDbError('Target database is a salve database')
+                if _database.schemas or _database.slaves:
+                    raise exceptions.AcceptableDbError('can not delete master database, slaves or schemas exist')
+                if model_count_with_key(session, SchemaQuote.qdatabase_id,
+                                        filter=SchemaQuote.qdatabase_id == _database.database_id):
+                    raise exceptions.AcceptableDbError('Database in schema quote list')
+                with self._delete_database(session, _database, **kwargs) as address:
+                    host = address[0]
+                    port = address[1]
+                    _result.setdefault('host', host)
+                    _result.setdefault('port', port)
+                    query.delete()
+            # 删除从库
+            else:
+                if not _database.slave:
+                    raise exceptions.AcceptableDbError('Target database is not a slave database')
+                if _database.quotes:
+                    raise exceptions.AcceptableDbError('Target slave database in schema quote list')
+                _masters = [m[0] for m in model_query(session, GopSalveRelation.master_id,
+                                                      filter=GopSalveRelation.slave_id == database_id).all()]
+                if _masters:
+                    masters = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id.in_(_masters),
+                                                                            GopDatabase.slave == 0))
+                    if len(_masters) != len(masters):
+                        raise exceptions.UnAcceptableDbError('Target slave database master missed')
+                else:
+                    masters = []
+                with self._delete_slave_database(session, _database, masters) as address:
+                    query.delete()
+                    host = address[0]
+                    port = address[1]
+                    _result.setdefault('host', host)
+                    _result.setdefault('port', port)
         return _result
 
     @abc.abstractmethod
     def _delete_database(self, session, database):
         """impl delete database code"""
-
-    def create_slave_database(self, database_id, **kwargs):
-        """create a slave database for database with database_id"""
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def _create_slave_database(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def delete_slave_database(self, database_id, **kwargs):
-        """delete a slave database"""
-        session = endpoint_session()
-        query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
-        query = query.options(joinedload(GopDatabase.quotes, innerjoin=False))
-        with session.begin():
-            slave = query.one_or_none()
-            _result = dict(database_id=slave.database_id, impl=slave.impl, dbtype=slave.dbtype,
-                           dbversion=slave.dbversion)
-            if slave.is_master:
-                raise exceptions.AcceptableDbError('Target database is not a slave database')
-            if slave.quotes:
-                raise exceptions.AcceptableDbError('Target database in schema quote list')
-            _masters = [m[0] for m in model_query(session, GopSalveRelation.master_id,
-                                                  filter=GopSalveRelation.slave_id == database_id).all()]
-            if not _masters:
-                raise exceptions.UnAcceptableDbError('Target slave database can not find master')
-            masters = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id.in_(_masters),
-                                                                    GopDatabase.is_master == True))
-            if len(_masters) != len(masters):
-                raise exceptions.UnAcceptableDbError('Target slave database master missed')
-            with self._delete_slave_database(session, slave, masters) as address:
-                query.delete()
-                host = address[0]
-                port = address[1]
-                _result.setdefault('host', host)
-                _result.setdefault('port', port)
-        return _result
 
     @abc.abstractmethod
     def _delete_slave_database(self, session, slave, masters, **kwargs):
@@ -325,7 +339,7 @@ class DatabaseManagerBase(object):
             raise exceptions.AcceptableSchemaError('Schema not not be found in %d' % database_id)
 
         _database = _schema.database
-        if not _database.is_master:
+        if _database.slave:
             raise exceptions.AcceptableDbError('Database is slave, can not get schema')
 
         _result = dict(database_id=database_id,
@@ -368,7 +382,7 @@ class DatabaseManagerBase(object):
             _database = query.one()
             _result = dict(database_id=database_id, impl=_database.impl,
                            dbtype=_database.dbtype, dbversion=_database.dbversion)
-            if not _database.is_master:
+            if _database.slave:
                 raise exceptions.AcceptableDbError('Database is slave, can not create schema')
             if _database.status != common.OK:
                 raise exceptions.AcceptableDbError('Database is not OK now')
@@ -427,7 +441,7 @@ class DatabaseManagerBase(object):
         src_database, dst_database = None, None
         for _database in query.all():
             if _database.database_id == src_database_id:
-                if not _database.is_master:
+                if _database.slave:
                     raise exceptions.AcceptableDbError('Source database is not master')
                 if not _database.passwd:
                     raise exceptions.AcceptableDbError('Source database has no passwd, can not copy')
@@ -436,7 +450,7 @@ class DatabaseManagerBase(object):
                     raise exceptions.AcceptableSchemaError('Source schemas %s not exist' % src_schema)
                 src_database = _database
             elif _database.database_id == dst_database_id:
-                if not _database.is_master:
+                if _database.slave:
                     raise exceptions.AcceptableDbError('Destination database is not master')
                 if not _database.passwd:
                     raise exceptions.AcceptableDbError('Destination database has no passwd, can not copy')
@@ -489,7 +503,7 @@ class DatabaseManagerBase(object):
             _result = dict(database_id=_database.database_id,
                            impl=_database.impl, dbtype=_database.dbtype,
                            dbversion=_database.dbversion)
-            if not _database.is_master:
+            if _database.slave:
                 raise exceptions.AcceptableDbError('can not delete schema from slave database')
             squery = model_query(session, GopSchema, filter=and_(GopSchema.schema == schema,
                                                                  GopSchema.database_id == database_id))

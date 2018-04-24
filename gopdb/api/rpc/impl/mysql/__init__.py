@@ -99,6 +99,15 @@ def default_config():
     return cf
 
 
+def slave_config(cf):
+    # Slave opts
+    cf.set('mysqld', 'read-only', 1)
+    cf.set('mysqld', 'relay-log', 'relay-bin')
+    cf.set('mysqld', 'replicate-ignore-db', 'information_schema')
+    cf.set('mysqld', 'replicate-ignore-db', 'performance_schema')
+    cf.set('mysqld', 'replicate-ignore-db', 'sys')
+
+
 class MysqlConfig(DatabaseConfigBase):
 
     def __init__(self, config):
@@ -127,7 +136,8 @@ class MysqlConfig(DatabaseConfigBase):
         sockfile = kwargs.pop('sockfile')
         logfile = kwargs.pop('logfile')
         # binlog on/off
-        binlog = (kwargs.pop('binlog', None) or kwargs.pop('log-bin', None))
+        binlog = (kwargs.pop('binlog', False) or kwargs.pop('log-bin', False))
+        relaylog = (kwargs.pop('relaylog', False) or kwargs.pop('relay-bin', False))
         # init mysql default config
         config = default_config()
         # set mysqld_safe opts
@@ -149,6 +159,8 @@ class MysqlConfig(DatabaseConfigBase):
             config.set('mysqld', 'log-bin', 'binlog')
             config.set('mysqld', 'expire_logs_days', conf.expire_log_days)
             config.set('mysqld', 'max_binlog_size', 270532608)
+        if relaylog:
+            slave_config(config)
         return cls(config)
 
     def save(self, cfgfile):
@@ -169,6 +181,13 @@ class MysqlConfig(DatabaseConfigBase):
         config.read(cfgfile)
         self.config = config
 
+    def binlog(self):
+        config = self.config
+        if not self.get('log-bin'):
+            conf = CONF[common.DB]
+            config.set('mysqld', 'log-bin', 'binlog')
+            config.set('mysqld', 'expire_logs_days', conf.expire_log_days)
+            config.set('mysqld', 'max_binlog_size', 270532608)
 
 class DatabaseManager(DatabaseManagerBase):
 
@@ -254,7 +273,7 @@ class DatabaseManager(DatabaseManagerBase):
         eventlet.sleep(0)
         self.start(cfgfile)
         eventlet.sleep(3)
-        self._init_passwd(cfgfile, kwargs.get('auth'))
+        self._init_passwd(cfgfile, kwargs.get('auth'), kwargs.get('repl'), )
         if postrun:
             postrun()
 
@@ -271,7 +290,7 @@ class DatabaseManager(DatabaseManagerBase):
         dbconfig.save(cfgfile)
         systemutils.chmod(cfgfile, 022)
 
-    def _init_passwd(self, cfgfile, auth):
+    def _init_passwd(self, cfgfile, auth, repl):
         """init password for database"""
         conf = CONF[common.DB]
         config = self.config_cls.load(cfgfile)
@@ -291,6 +310,17 @@ class DatabaseManager(DatabaseManagerBase):
                 "grant grant option on *.* to '%(user)s'@'%(source)s'" % dict(user=_auth.get('user'),
                                                                               source=_auth.get('source')) ,
                 "FLUSH PRIVILEGES"]
+        if repl:
+            auth = dict(user=repl.get('user'),
+                        passwd=repl.get('passwd'),
+                        source=repl.get('source'),
+                        privileges=common.REPLICATIONRIVILEGES,
+                        )
+            sqls.append(
+                "grant %(privileges) option on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'" % auth)
+        sqls.append('FLUSH PRIVILEGES')
+        if repl:
+            sqls.append('RESET MASTER')
         with engine.connect() as conn:
             LOG.info('Login mysql from unix sock success, try init privileges')
             for sql in sqls:
