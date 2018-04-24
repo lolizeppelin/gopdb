@@ -52,7 +52,7 @@ class DatabaseManager(DatabaseManagerBase):
     def _select_agents(dbtype, **kwargs):
         disk = kwargs.pop('disk', 2000)
         free = kwargs.pop('memory', 1000)
-        zone = kwargs.pop('zone', 'all')
+        zone = kwargs.pop('zone', 'all') or 'all'
         cpu = kwargs.pop('cpu', 2)
         affinity = 0
         if kwargs.pop('master', True):
@@ -215,27 +215,13 @@ class DatabaseManager(DatabaseManagerBase):
     def _create_database(self, session, database, bond, **kwargs):
         req = kwargs.pop('req')
         agent_id = kwargs.pop('agent_id', None)
-        if database.slave:
-            type_affinity = 2
-        else:
-            type_affinity = 1
         if not agent_id:
-            zone = kwargs.pop('zone', 'all')
-            if not zone:
-                raise InvalidArgument('Auto select database agent need zone')
-            includes = ['metadata.zone=%s' % zone,
-                        'metadata.agent_type=application',
-                        'metadata.gopdb-aff&%d' % type_affinity,
-                        'disk>=500', 'free>=200']
-            weighters = [
-                {'iowait': 3},
-                {'free': 200},
-                {'left': 500},
-                {'cputime': 5},
-                {'cpu': -1},
-                {'metadata.gopdb-aff': None},
-                {'process': None}]
-            chioces = entity_controller.chioces(common.DB, includes=includes, weighters=weighters)
+            _kwargs = {}
+            if database.slave > 0:
+                _kwargs['slave'] = True
+            else:
+                _kwargs['master'] = True
+            chioces = self._select_agents(database.dbtype, **_kwargs)
             if chioces:
                 agent_id = chioces[0]
                 LOG.info('Auto select  database agent %d' % agent_id)
