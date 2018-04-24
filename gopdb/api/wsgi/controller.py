@@ -74,7 +74,7 @@ class DatabaseReuest(BaseContorller):
                           'bond': {'type': 'integer', 'description': '表示要绑定的从库ID'},
                           'dbversion': {'type': 'object', 'description': '数据库版本'},
                           'affinity': {'type': 'integer', 'description': '数据库亲和性数值'},
-                          'agent_id': {'type': 'integer', 'minimum': 1,
+                          'agent_id': {'type': 'integer', 'minimum': 0,
                                        'description': '数据库实例安装的目标机器,不填自动分配'},
                           'zone': {'type': 'string', 'description': '自动分配的安装区域,默认zone为all'},}
                       }

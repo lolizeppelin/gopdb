@@ -192,6 +192,8 @@ class DatabaseManagerBase(object):
                                              filter=GopSalveRelation.slave_id == bond.database_id)
                 if count >= bond.slave:
                     raise InvalidArgument('Target slave database is full')
+            else:
+                bond = None
             _database = GopDatabase(user=user, passwd=passwd, slave=kwargs.pop('slave'),
                                     dbtype=dbtype, dbversion=dbversion, affinity=affinity,
                                     desc=kwargs.pop('desc', None))
