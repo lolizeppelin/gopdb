@@ -63,6 +63,7 @@ endpoint_controller = EndpointReuest()
 
 @singleton.singleton
 class DatabaseReuest(BaseContorller):
+
     CREATEDATABASE = {'type': 'object',
                       'required': ['impl', 'dbtype', 'user', 'passwd', 'slave'],
                       'properties': {
@@ -79,8 +80,6 @@ class DatabaseReuest(BaseContorller):
                           'zone': {'type': 'string', 'description': '自动分配的安装区域,默认zone为all'},}
                       }
 
-
-
     def reflect(self, req, impl, body=None):
         body = body or {}
         dbmanager = utils.impl_cls('wsgi', impl)
@@ -91,7 +90,14 @@ class DatabaseReuest(BaseContorller):
         body = body or {}
         dbmanager = utils.impl_cls('wsgi', impl)
         dbresult = dbmanager.select_database(**body)
-        return resultutils.results(result='create database success', data=dbresult)
+        return resultutils.results(result='select database success', data=dbresult)
+
+    def agents(self, req, impl, body=None):
+        body = body or {}
+        dbtype = body.pop('dbtype') or 'mysql'
+        dbmanager = utils.impl_cls('wsgi', 'local')
+        dbresult = dbmanager.select_agents(dbtype, **body)
+        return resultutils.results(result='select database agents success', data=dbresult)
 
     def index(self, req, body=None):
         body = body or {}

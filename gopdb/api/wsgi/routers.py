@@ -18,6 +18,10 @@ class Routers(router.RoutersBase):
                                                    controller.FAULT_MAP)
 
         self._add_resource(mapper, db_controller,
+                           path='/%s/agents' % common.DB,
+                           get_action='agents')
+
+        self._add_resource(mapper, db_controller,
                            path='/%s/{impl}/select' % common.DB,
                            get_action='select')
 

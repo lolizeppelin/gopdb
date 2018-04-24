@@ -34,6 +34,40 @@ entity_controller = EntityReuest()
 
 
 class DatabaseManager(DatabaseManagerBase):
+    # 排序规则
+    weighters = [
+        {'iowait': 3},
+        {'cputime': 5},
+        {'free': -200},
+        {'cpu': -1},
+        {'left': -300},
+        {'metadata.gopdb-aff': None},
+        {'process': None}
+    ]
+
+    def select_agents(self, dbtype, **kwargs):
+        return self._select_agents(dbtype, **kwargs)
+
+    @staticmethod
+    def _select_agents(dbtype, **kwargs):
+        disk = kwargs.pop('disk', 2000)
+        free = kwargs.pop('memory', 1000)
+        zone = kwargs.pop('zone', 'all')
+        cpu = kwargs.pop('cpu', 2)
+        affinity = 0
+        if kwargs.pop('master', True):
+            affinity = affinity | 1
+        if kwargs.pop('slave', False):
+            affinity = affinity | 2
+        # 包含规则
+        includes = ['metadata.zone=%s' % zone,
+                    'metadata.agent_type=application',
+                    'metadata.gopdb-aff&%d' % affinity,
+                    'metadata.%s!=None' % dbtype,
+                    'metadata.%s>=5.5' % dbtype,
+                    'disk>=%d' % disk, 'free>=%d' % free, 'cpu>=%d' % cpu]
+        return entity_controller.chioces(common.DB, includes, DatabaseManager.weighters)
+
     def _bond_slave(self, req,
                     master, master_host, master_port,
                     slave, slave_host, slave_port,
@@ -108,36 +142,10 @@ class DatabaseManager(DatabaseManagerBase):
 
     def _select_database(self, session, query, dbtype, **kwargs):
 
-        disk = kwargs.pop('disk', 2000)
-        free = kwargs.pop('memory', 1000)
-        zone = kwargs.pop('zone', 'all')
-        cpu = kwargs.pop('cpu', 2)
-        affinity = 0
-        if kwargs.pop('master', True):
-            affinity = affinity | 1
-        if kwargs.pop('slave', False):
-            affinity = affinity | 2
-        # 包含规则
-        includes = ['metadata.zone=%s' % zone,
-                    'metadata.agent_type=application',
-                    'metadata.gopdb-aff&%d' % affinity,
-                    'metadata.%s!=None' % dbtype,
-                    'metadata.%s>=5.5' % dbtype,
-                    'disk>=%d' % disk, 'free>=%d' % free, 'cpu>=%d' % cpu]
-        # 排序规则
-        weighters = [
-            {'iowait': 3},
-            {'cputime': 5},
-            {'free': -200},
-            {'cpu': -1},
-            {'left': -300},
-            {'metadata.gopdb-aff': None},
-            {'process': None}
-        ]
         result = []
 
         def _chioces():
-            return entity_controller.chioces(common.DB, includes, weighters)
+            return self._select_agents(dbtype, **kwargs)
         # 异步获取符合条件的agents排序
         chioces = eventlet.spawn(_chioces)
         entitys = set()

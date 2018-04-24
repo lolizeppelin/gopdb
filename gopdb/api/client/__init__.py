@@ -8,8 +8,8 @@ from gopdb.common import ENDPOINTKEY
 
 
 class GopDBClient(GopHttpClientApi):
-
-    select_databases_path = '/gopdb/select'
+    select_agents_path = '/gopdb/agents'
+    select_databases_path = '/gopdb/%s/select'
     reflect_databases_path = '/gopdb/%s/reflect'
     databases_path = '/gopdb/databases'
     database_path = '/gopdb/databases/%s'
@@ -26,6 +26,14 @@ class GopDBClient(GopHttpClientApi):
         # self.endpoint = DB
         super(GopDBClient, self).__init__(httpclient)
 
+    def database_agents(self, body=None):
+        resp, results = self.get(action=self.select_agents_path, body=body)
+        if results['resultcode'] != common.RESULT_SUCCESS:
+            raise ServerExecuteRequestError(message='get agents for  database fail:%d' % results['resultcode'],
+                                            code=resp.status_code,
+                                            resone=results['result'])
+        return results
+
     def reflect_database(self, impl, body):
         resp, results = self.get(action=self.reflect_databases_path % impl, body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
@@ -34,8 +42,8 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
-    def select_database(self, body=None):
-        resp, results = self.get(action=self.select_databases_path, body=body)
+    def select_database(self, impl, body=None):
+        resp, results = self.get(action=self.select_databases_path % impl, body=body)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='select database fail:%d' % results['resultcode'],
                                             code=resp.status_code,
