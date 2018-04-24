@@ -92,7 +92,7 @@ class DatabaseReuest(BaseContorller):
         dbresult = dbmanager.select_database(**body)
         return resultutils.results(result='select database success', data=dbresult)
 
-    def agents(self, req, impl, body=None):
+    def agents(self, req, body=None):
         body = body or {}
         dbtype = body.pop('dbtype') or 'mysql'
         dbmanager = utils.impl_cls('wsgi', 'local')
