@@ -19,6 +19,11 @@
 # local database admin password (string value)
 #localpass = gopdb
 
+# local database admin password, 1 master, 2 slave,  3 both ok (integer value)
+# Minimum value: 1
+# Maximum value: 3
+#affinity = 1
+
 # mysql bin log expire days (integer value)
 # Minimum value: 1
 # Maximum value: 14

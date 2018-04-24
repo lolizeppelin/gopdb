@@ -6,10 +6,6 @@ import contextlib
 import eventlet
 import psutil
 
-from collections import namedtuple
-
-from simpleutil.utils import uuidutils
-from simpleutil.utils import jsonutils
 from simpleutil.utils import singleton
 from simpleutil.utils import systemutils
 from simpleutil.log import log as logging
@@ -30,6 +26,7 @@ from goperation.manager.rpc.exceptions import RpcTargetLockException
 
 from gopdb import common
 from gopdb import utils
+from gopdb.api.rpc import impl as IMPL
 
 from gopdb.api.client import GopDBClient
 
