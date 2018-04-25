@@ -233,7 +233,8 @@ class DatabaseManager(DatabaseManagerBase):
         body.update(kwargs)
         if database.slave:
             configs['relaylog'] = True
-        if bond:
+            body['configs'] = configs
+        elif bond:
             _host, _port = self._get_entity(req=req, entity=int(bond.reflection_id))
             repl = privilegeutils.mysql_replprivileges(bond, _host)
             configs['binlog'] = True
@@ -262,7 +263,7 @@ class DatabaseManager(DatabaseManagerBase):
             except Exception:
                 LOG.error('Bond slave fail, try stop and delete new database')
                 self._stop_database(database)
-                with self._delete_database(session, database):
+                with self._delete_database(session, database, req=req):
                     LOG.info('Delete new database success')
                 raise
             else:
@@ -288,8 +289,10 @@ class DatabaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _delete_slave_database(self, session, slave, masters, **kwargs):
         req = kwargs.pop('req')
+        token = uuidutils.generate_uuid()
         local_ip, port = self._get_entity(req, int(slave.reflection_id), raise_error=True)
-        entity_controller.delete(req=req, endpoint=common.DB, entity=int(slave.reflection_id))
+        entity_controller.delete(req=req, endpoint=common.DB, entity=int(slave.reflection_id),
+                                 body=dict(token=token))
         try:
             yield local_ip, port
         except Exception:

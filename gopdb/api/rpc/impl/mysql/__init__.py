@@ -1,9 +1,8 @@
 import six
-import signal
 import os
 import eventlet
 import ConfigParser
-
+from collections import OrderedDict
 import psutil
 
 from simpleutil.log import log as logging
@@ -46,8 +45,47 @@ LOG = logging.getLogger(__name__)
 config.register_opts(CONF.find_group(common.DB))
 
 
+class MultiOrderedDict(OrderedDict):
+    def __setitem__(self, key, value,
+                    dict_setitem=dict.__setitem__):
+        if key in self:
+            if isinstance(self[key], list):
+                self[key].append(value)
+                return
+            else:
+                value = [self[key], value]
+        OrderedDict.__setitem__(self, key, value, dict_setitem)
+
+
+class MultiConfigParser(ConfigParser.ConfigParser):
+    def __init__(self):
+        ConfigParser.ConfigParser.__init__(self, dict_type=MultiOrderedDict)
+
+    def write(self, fp):
+        """Write an .ini-format representation of the configuration state."""
+        if self._defaults:
+            fp.write("[%s]\n" % ConfigParser.DEFAULTSECT)
+            for (key, value) in self._defaults.items():
+                fp.write("%s = %s\n" % (key, str(value).replace('\n', '\n\t')))
+            fp.write("\n")
+        for section in self._sections:
+            fp.write("[%s]\n" % section)
+            for (key, value) in self._sections[section].items():
+                if key == "__name__":
+                    continue
+                if (value is not None) or (self._optcre == self.OPTCRE):
+                    if isinstance(value, list):
+                        for v in value:
+                            key = " = ".join((key, str(v).replace('\n', '\n\t')))
+                            fp.write("%s\n" % (key))
+                    else:
+                        key = " = ".join((key, str(value).replace('\n', '\n\t')))
+                        fp.write("%s\n" % (key))
+            fp.write("\n")
+
+
 def default_config():
-    cf = ConfigParser.ConfigParser()
+    cf = MultiConfigParser()
 
     cf.add_section('mysqld_safe')
     cf.add_section('mysqld')
@@ -112,7 +150,7 @@ class MysqlConfig(DatabaseConfigBase):
 
     def __init__(self, config):
         # default opts
-        if not isinstance(config, ConfigParser.ConfigParser):
+        if not isinstance(config, MultiConfigParser):
             raise TypeError('mysql config not ConfigParser')
         self.config = config
 
@@ -122,7 +160,7 @@ class MysqlConfig(DatabaseConfigBase):
     @classmethod
     def load(cls, cfgfile):
         """load config from config file"""
-        config = ConfigParser.ConfigParser()
+        config = MultiConfigParser()
         config.read(cfgfile)
         return cls(config)
 
@@ -177,7 +215,7 @@ class MysqlConfig(DatabaseConfigBase):
 
     def update(self, cfgfile):
         """update config"""
-        config = ConfigParser.ConfigParser()
+        config = MultiConfigParser()
         config.read(cfgfile)
         self.config = config
 

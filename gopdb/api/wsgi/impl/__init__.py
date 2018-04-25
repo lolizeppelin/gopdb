@@ -126,15 +126,17 @@ class DatabaseManagerBase(object):
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
         _database = query.one()
         if _database.slave:
+            schemas = []
             # slave will find  masters schemas to show
             master_ids = model_query(session, GopSalveRelation.master_id,
-                                     filter=GopDatabase.slave_id == database_id).all()
-            query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id.in_(master_ids),
-                                                                  GopDatabase.slave > 0))
-            query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
-            schemas = []
-            for m_database in query.all():
-                schemas.extend(m_database.schemas)
+                                     filter=GopSalveRelation.slave_id == database_id).all()
+            if master_ids:
+                query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id.in_(master_ids),
+                                                                      GopDatabase.slave == 0))
+                query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
+
+                for m_database in query.all():
+                    schemas.extend(m_database.schemas)
         else:
             schemas = _database.schemas
 
@@ -263,7 +265,7 @@ class DatabaseManagerBase(object):
                         raise exceptions.UnAcceptableDbError('Target slave database master missed')
                 else:
                     masters = []
-                with self._delete_slave_database(session, _database, masters) as address:
+                with self._delete_slave_database(session, _database, masters, **kwargs) as address:
                     query.delete()
                     host = address[0]
                     port = address[1]
