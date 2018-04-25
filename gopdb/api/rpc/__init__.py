@@ -47,6 +47,21 @@ def count_timeout(ctxt, kwargs):
     return min(deadline, timeout)
 
 
+class CreateResult(resultutils.AgentRpcResult):
+    def __init__(self, agent_id, ctxt,
+                 resultcode, result,
+                 connection, port):
+        super(CreateResult, self).__init__(agent_id, ctxt, resultcode, result)
+        self.connection = connection
+        self.ports = port
+
+    def to_dict(self):
+        ret_dict = super(CreateResult, self).to_dict()
+        ret_dict.setdefault('port', self.port)
+        ret_dict.setdefault('connection', self.connection)
+        return ret_dict
+
+
 @singleton.singleton
 class Application(AppEndpointBase):
 
@@ -250,7 +265,7 @@ class Application(AppEndpointBase):
                                                   result='create %s database fail, entity exist' % entity)
             timeout = count_timeout(ctxt, kwargs)
             try:
-                self.create_entity(entity, timeout, **kwargs)
+                port = self.create_entity(entity, timeout, **kwargs)
                 resultcode = manager_common.RESULT_SUCCESS
                 result = 'create database success'
             except Exception as e:
@@ -258,14 +273,17 @@ class Application(AppEndpointBase):
                 result = 'create database fail with %s:%s' % (e.__class__.__name__,
                                                               str(e.message)
                                                               if hasattr(e, 'message') else 'unknown err msg')
+                return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                                  ctxt=ctxt,
+                                                  resultcode=resultcode,
+                                                  result=result, )
+        return CreateResult(agent_id=self.manager.agent_id,
+                            ctxt=ctxt,
+                            resultcode=resultcode,
+                            result=result,
+                            connection=self.manager.local_ip,
+                            port=port)
 
-        return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
-                                          ctxt=ctxt,
-                                          resultcode=resultcode,
-                                          result=result,
-                                          details=[dict(detail_id=entity,
-                                                   resultcode=resultcode,
-                                                   result='wait database start')])
 
     def rpc_post_create_entity(self, ctxt, entity, **kwargs):
         database_id = kwargs.pop('database_id')

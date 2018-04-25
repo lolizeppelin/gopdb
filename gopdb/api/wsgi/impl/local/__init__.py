@@ -242,15 +242,17 @@ class DatabaseManager(DatabaseManagerBase):
                 'configs': configs,
             }
             body.update(_slave)
-        entity = entity_controller.create(req=req,
-                                          agent_id=agent_id,
-                                          endpoint=common.DB,
-                                          body=body)['data'][0]['entity']
+        create_result = entity_controller.create(req=req,
+                                                 agent_id=agent_id,
+                                                 endpoint=common.DB,
+                                                 body=body)['data'][0]
+        rpc_result = create_result.get('notify')
+        entity = create_result.get('entity')
         database.impl = 'local'
         database.status = common.UNACTIVE
         database.reflection_id = str(entity)
-        host, port = self._get_entity(req=req, entity=int(bond.reflection_id), raise_error=True)
-
+        port = rpc_result.get('port')
+        host = rpc_result.get('connection')
         if bond:
             try:
                 self._bond_slave(req,
@@ -258,11 +260,13 @@ class DatabaseManager(DatabaseManagerBase):
                                  bond, _host, _port,
                                  repl)
             except Exception:
+                LOG.error('Bond slave fail, try stop and delete new database')
                 self._stop_database(database)
                 with self._delete_database(session, database):
-                    LOG.info('Delete database success')
+                    LOG.info('Delete new database success')
                 raise
             else:
+                LOG.debug('Add Slave relations')
                 session.add(GopSalveRelation(database.database_id, bond.database_id))
                 session.flush()
         yield host, port
