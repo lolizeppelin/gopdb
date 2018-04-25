@@ -261,9 +261,11 @@ class DatabaseManager(DatabaseManagerBase):
                                  bond, _host, _port,
                                  repl)
             except Exception:
-                LOG.error('Bond slave fail, try stop and delete new database')
                 if LOG.isEnabledFor(logging.DEBUG):
-                    LOG.exception('Bond fail')
+                    LOG.error(str(rpc_result))
+                    LOG.exception('Bond slave fail')
+                else:
+                    LOG.error('Bond slave fail, but database create success')
             else:
                 LOG.debug('Add Slave relations')
                 session.add(GopSalveRelation(database.database_id, bond.database_id))

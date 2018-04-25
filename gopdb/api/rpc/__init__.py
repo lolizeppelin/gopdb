@@ -213,8 +213,9 @@ class Application(AppEndpointBase):
 
         with self._prepare_entity_path(entity, apppath=False):
             with self._allocate_port(entity, port) as ports:
+                port = ports[0]
                 configs.setdefault('entity', entity)
-                configs.setdefault('port', ports[0])
+                configs.setdefault('port', port)
                 configs.setdefault('datadir', self.apppath(entity))
                 configs.setdefault('pidfile', pidfile)
                 configs.setdefault('sockfile', sockfile)
