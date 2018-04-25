@@ -53,7 +53,7 @@ class CreateResult(resultutils.AgentRpcResult):
                  connection, port):
         super(CreateResult, self).__init__(agent_id, ctxt, resultcode, result)
         self.connection = connection
-        self.ports = port
+        self.port = port
 
     def to_dict(self):
         ret_dict = super(CreateResult, self).to_dict()
