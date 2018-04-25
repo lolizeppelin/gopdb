@@ -44,11 +44,14 @@ LOG = logging.getLogger(__name__)
 
 config.register_opts(CONF.find_group(common.DB))
 
+MULTIABLEOPTS = frozenset([
+    'replicate-ignore-db',
+])
 
 class MultiOrderedDict(OrderedDict):
     def __setitem__(self, key, value,
                     dict_setitem=dict.__setitem__):
-        if key in self:
+        if key in MULTIABLEOPTS and key in self:
             if isinstance(self[key], list):
                 self[key].append(value)
                 return
@@ -76,8 +79,8 @@ class MultiConfigParser(ConfigParser.ConfigParser):
                 if (value is not None) or (self._optcre == self.OPTCRE):
                     if isinstance(value, list):
                         for v in value:
-                            key = " = ".join((key, str(v).replace('\n', '\n\t')))
-                            fp.write("%s\n" % (key))
+                            line = " = ".join((key, str(v).replace('\n', '\n\t')))
+                            fp.write("%s\n" % (line))
                     else:
                         key = " = ".join((key, str(value).replace('\n', '\n\t')))
                         fp.write("%s\n" % (key))
