@@ -262,8 +262,8 @@ class DatabaseManager(DatabaseManagerBase):
                                  database, host, port,
                                  bond, _host, _port,
                                  repl)
-            except exceptions.UnAcceptableDbError:
-                LOG.error('Bond slave got UnAcceptableDbError, but database create success')
+            except exceptions.UnAcceptableDbError as e:
+                LOG.error('Bond slave error %s, but database create success' % e.message)
             else:
                 LOG.debug('Add Slave relations')
                 session.add(GopSalveRelation(database.database_id, bond.database_id))
