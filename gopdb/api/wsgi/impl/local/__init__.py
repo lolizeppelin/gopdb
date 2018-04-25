@@ -72,9 +72,9 @@ class DatabaseManager(DatabaseManagerBase):
                     master, master_host, master_port,
                     slave, slave_host, slave_port,
                     repl):
-        if master_host == slave_host:
-            raise exceptions.UnAcceptableDbError('Master and Salve in same host')
         try:
+            if master_host == slave_host:
+                raise exceptions.UnAcceptableDbError('Master and Salve in same host')
             # master do
             connection = connformater % dict(user=master.user, passwd=master.passwd,
                                              host=master_host, port=master_port, schema='')
@@ -120,10 +120,12 @@ class DatabaseManager(DatabaseManagerBase):
                     raise exceptions.UnAcceptableDbError('Start slave fail')
                 else:
                     r.close()
-        except Exception:
+        except exceptions.UnAcceptableDbError:
+            raise
+        except Exception as e:
             if LOG.isEnabledFor(logging.DEBUG):
                 LOG.exception('Bond slave fail')
-            raise exceptions.UnAcceptableDbError('Call slave start repl fail')
+            raise exceptions.UnAcceptableDbError('Bond slave fail with %s' % e.__class__.__name__)
 
     def _get_entity(self, req, entity, raise_error=False):
         _entity = entity_controller.show(req=req, entity=entity,
@@ -260,11 +262,8 @@ class DatabaseManager(DatabaseManagerBase):
                                  database, host, port,
                                  bond, _host, _port,
                                  repl)
-            except Exception:
-                if LOG.isEnabledFor(logging.DEBUG):
-                    LOG.exception('Bond slave fail')
-                else:
-                    LOG.error('Bond slave fail, but database create success')
+            except exceptions.UnAcceptableDbError:
+                LOG.error('Bond slave got UnAcceptableDbError, but database create success')
             else:
                 LOG.debug('Add Slave relations')
                 session.add(GopSalveRelation(database.database_id, bond.database_id))
