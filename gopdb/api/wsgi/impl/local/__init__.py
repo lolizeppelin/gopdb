@@ -262,7 +262,6 @@ class DatabaseManager(DatabaseManagerBase):
                                  repl)
             except Exception:
                 if LOG.isEnabledFor(logging.DEBUG):
-                    LOG.error(str(rpc_result))
                     LOG.exception('Bond slave fail')
                 else:
                     LOG.error('Bond slave fail, but database create success')
