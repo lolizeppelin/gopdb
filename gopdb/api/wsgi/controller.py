@@ -94,7 +94,7 @@ class DatabaseReuest(BaseContorller):
 
     def agents(self, req, body=None):
         body = body or {}
-        dbtype = body.pop('dbtype') or 'mysql'
+        dbtype = body.pop('dbtype', 'mysql') or 'mysql'
         dbmanager = utils.impl_cls('wsgi', 'local')
         dbresult = dbmanager.select_agents(dbtype, **body)
         return resultutils.results(result='select database agents success', data=dbresult)
