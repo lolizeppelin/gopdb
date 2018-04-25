@@ -262,10 +262,8 @@ class DatabaseManager(DatabaseManagerBase):
                                  repl)
             except Exception:
                 LOG.error('Bond slave fail, try stop and delete new database')
-                self._stop_database(database)
-                with self._delete_database(session, database, req=req):
-                    LOG.info('Delete new database success')
-                raise
+                if LOG.isEnabledFor(logging.DEBUG):
+                    LOG.exception('Bond fail')
             else:
                 LOG.debug('Add Slave relations')
                 session.add(GopSalveRelation(database.database_id, bond.database_id))
