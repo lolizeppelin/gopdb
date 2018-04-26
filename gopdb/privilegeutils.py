@@ -60,5 +60,5 @@ def mysql_replprivileges(database_id, host, **kwargs):
 
 def mysql_slave_replprivileges(slave_id, **kwargs):
     auth = mysql_replprivileges(**kwargs)
-    auth['user'] = 'repluser-%d' % slave_id,
+    auth['user'] = 'repluser-%d' % slave_id
     return auth

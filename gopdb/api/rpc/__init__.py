@@ -418,6 +418,5 @@ class Application(AppEndpointBase):
                                                   result='bond entity faile, process not exist')
             dbmanager.bond(cfgfile, postrun=None, timeout=None, dbinfo=dbinfo, **kwargs)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
-                                          resultcode=manager_common.RESULT_ERROR,
                                           ctxt=ctxt,
-                                          result='bond to master fail')
+                                          result='bond to master success')
