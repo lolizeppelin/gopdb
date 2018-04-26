@@ -355,8 +355,7 @@ class DatabaseManagerBase(object):
                                              filter=GopSalveRelation.slave_id == database_id)
                 if count >= slave.slave:
                     raise InvalidArgument('Target slave database is full')
-                relation = GopSalveRelation(GopSalveRelation(master_id=master.database_id,
-                                                             slave_id=slave.database_id))
+                relation = GopSalveRelation(master_id=master.database_id, slave_id=slave.database_id)
                 session.add(relation)
                 session.flush()
             return self._bond_database(session, master, slave, relation, **kwargs)

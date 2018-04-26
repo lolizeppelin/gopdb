@@ -208,8 +208,7 @@ class DatabaseManager(DatabaseManagerBase):
                               agent_id, common.DB, entity, [port, ])
         if bond:
             LOG.debug('Add Slave relations')
-            relation = GopSalveRelation(GopSalveRelation(master_id=database.database_id,
-                                                         slave_id=bond.database_id))
+            relation = GopSalveRelation(master_id=database.database_id, slave_id=bond.database_id)
             session.add(relation)
             session.flush()
         yield host, port
