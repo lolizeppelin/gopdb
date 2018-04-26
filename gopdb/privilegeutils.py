@@ -53,4 +53,6 @@ def mysql_replprivileges(database_id, host, **kwargs):
     auth.update(kwargs)
     if not auth.get('passwd'):
         auth['passwd'] = ''.join(random.sample(string.ascii_lowercase, 6))
+    auth['database_id'] = database_id
+    auth['host'] = host
     return auth
