@@ -401,8 +401,6 @@ class Application(AppEndpointBase):
                                           result=result)
 
     def rpc_bond_entity(self, ctxt, entity, **kwargs):
-        master = kwargs.pop('master', None)
-        force = kwargs.pop('force', False)
         dbtype = self._dbtype(entity)
         dbmanager = utils.impl_cls('rpc', dbtype)
         cfgfile = self._db_conf(entity, dbtype)
@@ -412,9 +410,7 @@ class Application(AppEndpointBase):
                 return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                                   ctxt=ctxt,
                                                   result='bond entity faile, process not exist')
-        LOG.error('================================')
-        LOG.error(str(master))
-        LOG.error('================================')
+            dbmanager.bond(cfgfile, postrun=None, timeout=None, **kwargs)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           resultcode=manager_common.RESULT_ERROR,
                                           ctxt=ctxt,

@@ -47,9 +47,10 @@ def mysql_drop_replprivileges(master, slave, host, port):
     utils.drop_privileges(engine, auths=[auth, ])
 
 
-def mysql_replprivileges(database_id, host):
-    passwd = ''.join(random.sample(string.ascii_lowercase, 6))
+def mysql_replprivileges(database_id, host, **kwargs):
     auth = dict(user='repluser-%d' % database_id,
-                passwd='repl-%s' % passwd,
                 source=host, privileges=common.REPLICATIONRIVILEGES)
+    auth.update(kwargs)
+    if not auth.get('passwd'):
+        auth['passwd'] = ''.join(random.sample(string.ascii_lowercase, 6))
     return auth

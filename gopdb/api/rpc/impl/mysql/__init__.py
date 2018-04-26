@@ -15,6 +15,7 @@ from sqlalchemy.pool import NullPool
 import goperation
 
 from gopdb import common
+from gopdb import privilegeutils
 from gopdb.api.rpc.impl import DatabaseConfigBase
 from gopdb.api.rpc.impl import DatabaseManagerBase
 
@@ -340,6 +341,47 @@ class DatabaseManager(DatabaseManagerBase):
             process.terminate()
         else:
             raise ValueError('Process user or cmdline not match')
+
+    def bond(self, cfgfile, postrun, timeout,
+             **kwargs):
+        """bond to master database intance"""
+        conf = CONF[common.DB]
+        master = kwargs.pop('master')
+        force = kwargs.pop('force', False)
+        config = self.config_cls.load(cfgfile)
+        sockfile = config.get('socket')
+        LOG.info('Try bond master for mysql %s' % sockfile)
+        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % (conf.localroot,
+                                                                                conf.localpass,
+                                                                                sockfile)
+        engine = engines.create_engine(sql_connection=conn,
+                                       poolclass=NullPool)
+        auth = privilegeutils.mysql_replprivileges(**master)
+        master_name = 'masterdb-%(database_id)s' % auth
+        sql = "CHANGE MASTER 'masterdb-%(database_id)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
+              "MASTER_USER='%(user)s',MASTER_PASSWORD='%(passwd)s'," \
+              "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(position)s)" % auth
+        LOG.info('Replication connect sql %s' % sql)
+        results = []
+        with engine.connect() as conn:
+            LOG.info('Login mysql from unix sock success, try bond master')
+            r = conn.execute('SHOW SLAVE STATUS')
+            if r.returns_rows:
+                shows = r.fetchall()
+                results.append(shows)
+            r.close()
+
+            r = conn.execute(sql)
+            if r.returns_rows:
+                results.append(r.fetchall())
+            r.close()
+            LOG.info('Connect success, try start slave')
+            r = conn.execute('START SLAVE %s' % master_name)
+            if r.returns_rows:
+                results.append(r.fetchall())
+            r.close()
+        if postrun:
+            postrun(results)
 
 
     def install(self, cfgfile, postrun, timeout, **kwargs):
