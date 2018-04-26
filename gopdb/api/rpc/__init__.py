@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import time
 import shutil
@@ -25,6 +26,7 @@ from goperation.manager.rpc.exceptions import RpcTargetLockException
 
 
 from gopdb import common
+from gopdb import privilegeutils
 from gopdb import utils
 from gopdb.api.rpc import impl as IMPL
 
@@ -100,11 +102,13 @@ class Application(AppEndpointBase):
             _entity = int(dbinfo.pop('entity'))
             _database_id = dbinfo.pop('database_id')
             _dbtype = dbinfo.pop('dbtype')
+            slave = dbinfo.pop('slave')
             if _entity in self.konwn_database:
                 raise RuntimeError('Database Entity %d Duplicate' % _entity)
             LOG.info('entity %d with database id %d' % (_entity, _database_id))
             self.konwn_database.setdefault(_entity, dict(database_id=_database_id,
                                                          dbtype=_dbtype,
+                                                         slave=slave,
                                                          pid=None))
         # find entity pid
         for entity in self.entitys:
@@ -199,9 +203,18 @@ class Application(AppEndpointBase):
         systemutils.drop_user(self.entity_user(entity))
 
     def create_entity(self, entity, timeout, **kwargs):
+        """
+        @param dbtype:        string 数据库类型
+        @param configs:       dict   数据库配置字典
+        @param auth:          dict   远程管理员账号密码
+        @param bond:          dict   需要绑定的从库(主库专用参数)
+        """
         dbtype = kwargs.pop('dbtype')
         configs = kwargs.pop('configs', {})
-
+        bond = kwargs.pop('bond', None)
+        if bond:
+            replication = privilegeutils.mysql_replprivileges(bond.get('database_id'), bond.get('host'))
+            kwargs['replication'] = replication
         port = configs.pop('port', None)
         pidfile = os.path.join(self.entity_home(entity), '%s.pid' % dbtype)
         sockfile = os.path.join(self.entity_home(entity), '%s.sock' % dbtype)
@@ -224,36 +237,46 @@ class Application(AppEndpointBase):
                 dbmanager.save_conf(cfgfile, **configs)
                 LOG.info('Prepare database config file success')
 
-                def _notify_success():
+                def _notify_success(results):
                     """notify database intance create success"""
                     dbinfo = self.konwn_database.get(entity)
                     if not dbinfo:
                         LOG.warning('Can not find entity database id, active fail')
                         return
+                    if bond:
+                        LOG.debug('Try bond slave database')
+                        for r in results:
+                            # self.client.database_bond(database_id=bond.get('database_id'),
+                            #                           body={'master': dbinfo.get('database_id'),
+                            #                                 'host': self.manager.local_ip,
+                            #                                 'port': port,
+                            #                                 'passwd': replication.get('passwd'),
+                            #                                 'file': None,
+                            #                                 'position': None,
+                            #                                 })
+                            LOG.error('1111111111111111111111111111111')
+                            LOG.error(r)
+                            LOG.error('2222222222222222222222222222222')
                     if self._entity_process(entity):
                         self.client.database_update(database_id=dbinfo.get('database_id'),
                                                     body={'status': common.OK})
-
                 kwargs.update({'logfile': install_log})
-                # call database_install in green thread
-                # eventlet.spawn_n(dbmanager.install, cfgfile, _notify_success, timeout,
-                #                  **kwargs)
                 threadpool.add_thread(dbmanager.install, cfgfile, _notify_success, timeout,
                                       **kwargs)
 
-        def _port_notify():
-            """notify port bond"""
-            _timeout = timeout if timeout else 30
-            overtime = int(time.time()) + _timeout
-            while entity not in self.konwn_database:
-                if int(time.time()) > overtime:
-                    LOG.error('Fail allocate port %d for %s.%d' % (ports[0], common.DB, entity))
-                    return
-                eventlet.sleep(1)
-            self.client.ports_add(agent_id=self.manager.agent_id,
-                                  endpoint=common.DB, entity=entity, ports=ports)
+        # def _port_notify():
+        #     """notify port bond"""
+        #     _timeout = timeout if timeout else 30
+        #     overtime = int(time.time()) + _timeout
+        #     while entity not in self.konwn_database:
+        #         if int(time.time()) > overtime:
+        #             LOG.error('Fail allocate port %d for %s.%d' % (ports[0], common.DB, entity))
+        #             return
+        #         eventlet.sleep(1)
+        #     self.client.ports_add(agent_id=self.manager.agent_id,
+        #                           endpoint=common.DB, entity=entity, ports=ports)
 
-        threadpool.add_thread(_port_notify)
+        # threadpool.add_thread(_port_notify)
         return port
 
     def rpc_create_entity(self, ctxt, entity, **kwargs):
@@ -285,11 +308,13 @@ class Application(AppEndpointBase):
                             connection=self.manager.local_ip,
                             port=port)
 
-
     def rpc_post_create_entity(self, ctxt, entity, **kwargs):
         database_id = kwargs.pop('database_id')
         dbtype = kwargs.pop('dbtype')
-        self.konwn_database.setdefault(entity, dict(database_id=database_id, dbtype=dbtype, pid=None))
+        slave = kwargs.pop('slave')
+        self.konwn_database.setdefault(entity, dict(database_id=database_id,
+                                                    slave=slave,
+                                                    dbtype=dbtype, pid=None))
 
     def rpc_reset_entity(self, ctxt, entity, **kwargs):
         entity = int(entity)

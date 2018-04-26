@@ -12,9 +12,9 @@ from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
 
 from gopdb import common
+from gopdb import privilegeutils
 from gopdb.api.wsgi import exceptions
 from gopdb.api.wsgi.impl import DatabaseManagerBase
-from gopdb.api.wsgi.impl import privilegeutils
 from gopdb.models import GopDatabase
 from gopdb.models import RecordDatabase
 
@@ -130,6 +130,63 @@ class DatabaseManager(DatabaseManagerBase):
     def _status_database(self, database, **kwargs):
         """impl status a database code"""
         raise NotImplementedError
+
+    def _bond_database(self, session, master, slave, relation, **kwargs):
+        raise NotImplementedError('Wait!!!')
+        # try:
+        #     if master_host == slave_host:
+        #         raise exceptions.UnAcceptableDbError('Master and Salve in same host')
+        #     # master do
+        #     connection = connformater % dict(user=master.user, passwd=master.passwd,
+        #                                      host=master_host, port=master_port, schema='')
+        #     engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
+        #     with engine.connect() as conn:
+        #         LOG.info('Login master database to get pos and file')
+        #         r = conn.execute('show master status')
+        #         results = r.fetchall()
+        #         r.close()
+        #     if not results:
+        #         raise exceptions.UnAcceptableDbError('Master bind log not open!')
+        #     binlog = results[0]
+        #     if binlog.get('file')[-1] != '1' or binlog.get('position') > 1000:
+        #         raise exceptions.UnAcceptableDbError('Database pos of file error')
+        #     # slave do
+        #     slave_info = dict(replname='database-%d' % master.database_id,
+        #                       host=master_host, port=master_port,
+        #                       repluser=repl.get('user'), replpasswd=repl.get('passwd'),
+        #                       file=binlog.get('file'), pos=binlog.get('position'))
+        #     sqls = ['SHOW SLAVE STATUS']
+        #     sqls.append("CHANGE MASTER '%(replname)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
+        #                 "MASTER_USER='%(repluser)s',MASTER_PASSWORD='%(replpasswd)s'," \
+        #                 "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(pos)s)" % slave_info)
+        #     sqls.append('START salve %(replname)s' % slave_info)
+        #
+        #     connection = connformater % dict(user=slave.user, passwd=slave.passwd,
+        #                                      host=slave_host, port=slave_port, schema='')
+        #     engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
+        #     with engine.connect() as conn:
+        #         LOG.info('Login slave database for init')
+        #         r = conn.execute(sqls[0])
+        #         if LOG.isEnabledFor(logging.DEBUG):
+        #             for row in r.fetchall():
+        #                 LOG.debug(str(row))
+        #         r.close()
+        #         r = conn.execute(sqls[1])
+        #         r.close()
+        #         LOG.debug('Success add repl info')
+        #         try:
+        #             r = conn.execute(sqls[2])
+        #         except Exception:
+        #             LOG.error('Start slave fail')
+        #             raise exceptions.UnAcceptableDbError('Start slave fail')
+        #         else:
+        #             r.close()
+        # except exceptions.UnAcceptableDbError:
+        #     raise
+        # except Exception as e:
+        #     if LOG.isEnabledFor(logging.DEBUG):
+        #         LOG.exception('Bond slave fail')
+        #     raise exceptions.UnAcceptableDbError('Bond slave fail with %s' % e.__class__.__name__)
 
     def _address(self, session, dbmaps):
         record_ids = map(int, dbmaps.keys())

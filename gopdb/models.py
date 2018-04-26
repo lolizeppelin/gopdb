@@ -63,6 +63,7 @@ class GopSalveRelation(TableBase):
     master_id = sa.Column(sa.ForeignKey('gopdatabases.database_id', ondelete="RESTRICT", onupdate='RESTRICT'),
                           primary_key=True)
     slave_id = sa.Column(INTEGER(unsigned=True), nullable=False, primary_key=True)
+    ready = sa.Column(BOOLEAN, nullable=False, default=False)
     readonly = sa.Column(BOOLEAN, nullable=False, default=True)
     __table_args__ = (
         InnoDBTableBase.__table_args__

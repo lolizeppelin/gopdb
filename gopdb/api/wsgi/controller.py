@@ -80,23 +80,42 @@ class DatabaseReuest(BaseContorller):
                           'zone': {'type': 'string', 'description': '自动分配的安装区域,默认zone为all'},}
                       }
 
+    BONDSLAVE = {
+        'type': 'object',
+        'required': ['master', 'host', 'port', 'passwd'],
+        'properties': {
+            'master': {'type': 'integer', 'minimum': 1, 'description': '主库ID'},
+            'host': {'type': 'string', 'minLength': 1, 'description': '主库host'},
+            'port': {'type': 'integer', 'minimum': 1, 'description': '主库port'},
+            'passwd': {'type': 'string', 'minLength': 1, 'description': '同步用户密码'},
+            'file': {'type': 'string', 'minLength': 5, 'description': '主库binlog 文件名'},
+            'position': {'type': 'integer', 'minimum': 1, 'description': '主库binlog 位置'},
+        }
+    }
+
     def reflect(self, req, impl, body=None):
         body = body or {}
+        kwargs = dict(req=req)
+        kwargs.update(body)
         dbmanager = utils.impl_cls('wsgi', impl)
-        reflect_list = dbmanager.reflect_database(**body)
+        reflect_list = dbmanager.reflect_database(**kwargs)
         return resultutils.results(result='reflect database success', data=reflect_list)
 
     def select(self, req, impl, body=None):
         body = body or {}
+        kwargs = dict(req=req)
+        kwargs.update(body)
         dbmanager = utils.impl_cls('wsgi', impl)
-        dbresult = dbmanager.select_database(**body)
+        dbresult = dbmanager.select_database(**kwargs)
         return resultutils.results(result='select database success', data=dbresult)
 
     def agents(self, req, body=None):
         body = body or {}
+        kwargs = dict(req=req)
+        kwargs.update(body)
         dbtype = body.pop('dbtype', 'mysql') or 'mysql'
         dbmanager = utils.impl_cls('wsgi', 'local')
-        dbresult = dbmanager.select_agents(dbtype, **body)
+        dbresult = dbmanager.select_agents(dbtype, **kwargs)
         return resultutils.results(result='select database agents success', data=dbresult)
 
     def index(self, req, body=None):
@@ -226,6 +245,16 @@ class DatabaseReuest(BaseContorller):
         dbmanager = _impl(database_id)
         dbresult = dbmanager.status_database(database_id, **kwargs)
         return resultutils.results(result='status database success', data=[dbresult, ])
+
+    def bond(self, req, database_id, body=None):
+        body = body or {}
+        jsonutils.schema_validate(body, self.BONDSLAVE)
+        database_id = int(database_id)
+        kwargs = dict(req=req)
+        kwargs.update(body)
+        dbmanager = _impl(database_id)
+        dbresult = dbmanager.bond_database(database_id, **kwargs)
+        return resultutils.results(result='slave database success', data=[dbresult, ])
 
 
 @singleton.singleton

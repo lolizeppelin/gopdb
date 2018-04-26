@@ -1,3 +1,5 @@
+import random
+import string
 from sqlalchemy.pool import NullPool
 from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.argformater import noschemaconn
@@ -7,6 +9,9 @@ from simpleutil.common.exceptions import InvalidArgument
 from gopdb import common
 
 from gopdb.models import GopSchema
+from gopdb.models import GopDatabase
+
+src = string.ascii_lowercase
 
 def mysql_privileges(auth):
     if isinstance(auth, dict):
@@ -42,10 +47,9 @@ def mysql_drop_replprivileges(master, slave, host, port):
     utils.drop_privileges(engine, auths=[auth, ])
 
 
-def mysql_replprivileges(slave, host):
-    if host == 'unkonwn':
-        raise InvalidArgument('Slave not on line')
-    auth = dict(user='repluser-%d' % slave.database_id,
-                passwd='repl-%s' % slave.passwd,
+def mysql_replprivileges(database_id, host):
+    passwd = ''.join(random.sample(string.ascii_lowercase, 6))
+    auth = dict(user='repluser-%d' % database_id,
+                passwd='repl-%s' % passwd,
                 source=host, privileges=common.REPLICATIONRIVILEGES)
     return auth

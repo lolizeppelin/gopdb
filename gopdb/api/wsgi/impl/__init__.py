@@ -1,6 +1,5 @@
 # -*- coding:utf-8 -*-
 import abc
-
 import six
 
 from sqlalchemy.orm import joinedload
@@ -14,9 +13,9 @@ from simpleservice.ormdb.api import model_query
 
 from gopdb import common
 from gopdb import utils
+from gopdb import privilegeutils
 from gopdb.api import endpoint_session
 from gopdb.api.wsgi import exceptions
-from gopdb.api.wsgi.impl import privilegeutils
 from gopdb.models import GopDatabase
 from gopdb.models import GopSalveRelation
 from gopdb.models import GopSchema
@@ -109,9 +108,10 @@ class DatabaseManagerBase(object):
                 return _result
             query = model_query(session, GopDatabase, filter=_filter)
             for _database in query:
-                dbinfo = dict(database_id=_database.database_id)
+                dbinfo = dict(database_id=_database.database_id,
+                              dbtype=_database.dbtype,
+                              slave=_database.slave)
                 dbinfo.setdefault(key, _database.reflection_id)
-                dbinfo.setdefault('dbtype', _database.dbtype)
                 _result.append(dbinfo)
         return _result
 
@@ -189,7 +189,9 @@ class DatabaseManagerBase(object):
                 if not bond:
                     raise InvalidArgument('Target slave databse can not be found, can not bond to slave databases')
                 if not bond.slave:
-                    raise InvalidArgument('Target database is not Salve database')
+                    raise InvalidArgument('Target database is not salve database')
+                if bond.status != common.OK:
+                    raise InvalidArgument('Targe slave database is not active')
                 count = model_count_with_key(session, GopSalveRelation,
                                              filter=GopSalveRelation.slave_id == bond.database_id)
                 if count >= bond.slave:
@@ -312,6 +314,57 @@ class DatabaseManagerBase(object):
     @abc.abstractmethod
     def _status_database(self, database, **kwargs):
         """impl status a database code"""
+
+    def bond_database(self, database_id, **kwargs):
+        master_id = kwargs.pop('master')
+        file = kwargs.get('file')
+        position = kwargs.get('position')
+        if not file or not position:
+            raise InvalidArgument('Can not bond slave without file and position')
+        master = None
+        slave = None
+        relation = None
+        session = endpoint_session()
+        query = model_query(session, GopDatabase, filter=GopDatabase.database_id.in_([database_id, master_id]))
+        query = query.options(joinedload(GopDatabase.slaves, innerjoin=False))
+        with session.begin(subtransactions=True):
+            for database in query:
+                if database.database_id == database_id:
+                    slave = database
+                elif database.database_id == master_id:
+                    master = database
+            # 校验主从
+            if slave is None or slave.slave <= 0:
+                raise InvalidArgument('slave database with id %d can not be found' % database_id)
+            if slave.status != common.OK:
+                raise InvalidArgument('Slave database is not active')
+            if master is None or master.slave > 0:
+                raise InvalidArgument('Master database with id %d can not be found' % master_id)
+            if master.impl != slave.impl or master.dbtype != slave.dbtype:
+                raise InvalidArgument('Master and slave not the same type or impl')
+            for _relation in master.slaves:
+                if _relation.slave_id == database_id:
+                    # 找到绑定关系
+                    if _relation.ready:
+                        raise InvalidArgument('Slave already in master slave list')
+                    relation = _relation
+                    break
+            # 没有绑定关系, 确认从库上限
+            if not relation:
+                count = model_count_with_key(session, GopSalveRelation,
+                                             filter=GopSalveRelation.slave_id == database_id)
+                if count >= slave.slave:
+                    raise InvalidArgument('Target slave database is full')
+                relation = GopSalveRelation(GopSalveRelation(master_id=master.database_id,
+                                                             slave_id=slave.database_id))
+                session.add(relation)
+                session.flush()
+            return self._bond_database(session, master, slave, relation, **kwargs)
+
+    @abc.abstractmethod
+    def _bond_database(self, session, master, slave, relation, **kwargs):
+        """impl bond slave database"""
+
 
     def address(self, databases):
         session = endpoint_session(readonly=True)

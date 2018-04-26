@@ -13,17 +13,19 @@ from simpleservice.ormdb.argformater import connformater
 from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
 
+from goperation import threadpool
 from goperation.manager import common as manager_common
 from goperation.manager.api import get_client
 from goperation.manager.api import rpcfinishtime
 from goperation.manager.utils import targetutils
 from goperation.manager.wsgi.entity.controller import EntityReuest
+from goperation.manager.wsgi.port.controller import PortReuest
 from goperation.manager.wsgi.exceptions import RpcResultError
 
 from gopdb import common
+from gopdb import privilegeutils
 from gopdb.api.wsgi import exceptions
 from gopdb.api.wsgi.impl import DatabaseManagerBase
-from gopdb.api.wsgi.impl import privilegeutils
 from gopdb.models import GopDatabase
 from gopdb.models import GopSalveRelation
 
@@ -31,6 +33,7 @@ from gopdb.models import GopSalveRelation
 LOG = logging.getLogger(__name__)
 
 entity_controller = EntityReuest()
+port_controller = PortReuest()
 
 
 class DatabaseManager(DatabaseManagerBase):
@@ -46,6 +49,7 @@ class DatabaseManager(DatabaseManagerBase):
     ]
 
     def select_agents(self, dbtype, **kwargs):
+        req = kwargs.pop('req')
         return self._select_agents(dbtype, **kwargs)
 
     @staticmethod
@@ -68,65 +72,6 @@ class DatabaseManager(DatabaseManagerBase):
                     'disk>=%d' % disk, 'free>=%d' % free, 'cpu>=%d' % cpu]
         return entity_controller.chioces(common.DB, includes, DatabaseManager.weighters)
 
-    def _bond_slave(self, req,
-                    master, master_host, master_port,
-                    slave, slave_host, slave_port,
-                    repl):
-        try:
-            if master_host == slave_host:
-                raise exceptions.UnAcceptableDbError('Master and Salve in same host')
-            # master do
-            connection = connformater % dict(user=master.user, passwd=master.passwd,
-                                             host=master_host, port=master_port, schema='')
-            engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
-            with engine.connect() as conn:
-                LOG.info('Login master database to get pos and file')
-                r = conn.execute('show master status')
-                results = r.fetchall()
-                r.close()
-            if not results:
-                raise exceptions.UnAcceptableDbError('Master bind log not open!')
-            binlog = results[0]
-            if binlog.get('file')[-1] != '1' or binlog.get('position') > 1000:
-                raise exceptions.UnAcceptableDbError('Database pos of file error')
-            # slave do
-            slave_info = dict(replname='database-%d' % master.database_id,
-                              host=master_host, port=master_port,
-                              repluser=repl.get('user'), replpasswd=repl.get('passwd'),
-                              file=binlog.get('file'), pos=binlog.get('position'))
-            sqls = ['SHOW SLAVE STATUS']
-            sqls.append("CHANGE MASTER '%(replname)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
-                        "MASTER_USER='%(repluser)s',MASTER_PASSWORD='%(replpasswd)s'," \
-                        "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(pos)s)" % slave_info)
-            sqls.append('START salve %(replname)s' % slave_info)
-
-            connection = connformater % dict(user=slave.user, passwd=slave.passwd,
-                                             host=slave_host, port=slave_port, schema='')
-            engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
-            with engine.connect() as conn:
-                LOG.info('Login slave database for init')
-                r = conn.execute(sqls[0])
-                if LOG.isEnabledFor(logging.DEBUG):
-                    for row in r.fetchall():
-                        LOG.debug(str(row))
-                r.close()
-                r = conn.execute(sqls[1])
-                r.close()
-                LOG.debug('Success add repl info')
-                try:
-                    r = conn.execute(sqls[2])
-                except Exception:
-                    LOG.error('Start slave fail')
-                    raise exceptions.UnAcceptableDbError('Start slave fail')
-                else:
-                    r.close()
-        except exceptions.UnAcceptableDbError:
-            raise
-        except Exception as e:
-            if LOG.isEnabledFor(logging.DEBUG):
-                LOG.exception('Bond slave fail')
-            raise exceptions.UnAcceptableDbError('Bond slave fail with %s' % e.__class__.__name__)
-
     def _get_entity(self, req, entity, raise_error=False):
         _entity = entity_controller.show(req=req, entity=entity,
                                          endpoint=common.DB, body={'ports': True})['data'][0]
@@ -143,6 +88,7 @@ class DatabaseManager(DatabaseManagerBase):
         return local_ip, port
 
     def _select_database(self, session, query, dbtype, **kwargs):
+        req = kwargs.pop('req')
 
         result = []
 
@@ -199,6 +145,7 @@ class DatabaseManager(DatabaseManagerBase):
     @contextlib.contextmanager
     def _reflect_database(self, session, **kwargs):
         """impl reflect code"""
+        req = kwargs.pop('req')
         entitys = kwargs.get('entitys', None)
         if entitys:
             entitys = argutils.map_with(entitys, str)
@@ -237,11 +184,11 @@ class DatabaseManager(DatabaseManagerBase):
             configs['relaylog'] = True
             body['configs'] = configs
         elif bond:
-            _host, _port = self._get_entity(req=req, entity=int(bond.reflection_id))
-            repl = privilegeutils.mysql_replprivileges(bond, _host)
+            _host, _port = self._get_entity(req=req, entity=int(bond.reflection_id), raise_error=True)
             configs['binlog'] = True
+            # 发送从库信息到新增主库所在agent
             _slave = {
-                'repl': repl,
+                'bond': dict(database_id=bond.database_id, host=_host, port=_port),
                 'configs': configs,
             }
             body.update(_slave)
@@ -251,28 +198,26 @@ class DatabaseManager(DatabaseManagerBase):
                                                  body=body)['data'][0]
         rpc_result = create_result.get('notify')
         entity = create_result.get('entity')
+        port = rpc_result.get('port')
+        host = rpc_result.get('connection')
         database.impl = 'local'
         database.status = common.UNACTIVE
         database.reflection_id = str(entity)
-        port = rpc_result.get('port')
-        host = rpc_result.get('connection')
+        # 通知端口添加
+        threadpool.add_thread(port_controller.unsafe_create,
+                              agent_id, common.DB, entity, [port, ])
         if bond:
-            try:
-                self._bond_slave(req,
-                                 database, host, port,
-                                 bond, _host, _port,
-                                 repl)
-            except exceptions.UnAcceptableDbError as e:
-                LOG.error('Bond slave error %s, but database create success' % e.message)
-            else:
-                LOG.debug('Add Slave relations')
-                session.add(GopSalveRelation(database.database_id, bond.database_id))
-                session.flush()
+            LOG.debug('Add Slave relations')
+            relation = GopSalveRelation(GopSalveRelation(master_id=database.database_id,
+                                                         slave_id=bond.database_id))
+            session.add(relation)
+            session.flush()
         yield host, port
 
     def _esure_create(self, database, **kwargs):
         entity_controller.post_create_entity(entity=int(database.reflection_id),
                                              endpoint=common.DB, database_id=database.database_id,
+                                             slave=database.slave,
                                              dbtype=database.dbtype)
 
     @contextlib.contextmanager
@@ -367,6 +312,42 @@ class DatabaseManager(DatabaseManagerBase):
         if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
             raise RpcResultError('status database entity fail %s' % rpc_ret.get('result'))
         return rpc_ret
+
+    def _bond_database(self, session, master, slave, relation, **kwargs):
+        req = kwargs.pop('req')
+        entity = int(slave.reflection_id)
+        with session.begin():
+            _entity = entity_controller.show(req=req, entity=entity,
+                                             endpoint=common.DB, body={'ports': False})['data'][0]
+            agent_id = _entity['agent_id']
+            metadata = _entity['metadata']
+            if not metadata:
+                raise InvalidArgument('Traget database agent is offline')
+            target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                        metadata.get('host'))
+            target.namespace = common.DB
+            rpc = get_client()
+            finishtime, timeout = rpcfinishtime()
+            # 发送master信息到从库所在agent
+            rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime + 3, 'agents': [agent_id, ]},
+                               msg={'method': 'bond_entity',
+                                    'args': dict(entity=entity,
+                                                 force=kwargs.get('force', False),
+                                                 master=dict(
+                                                     database_id=master.database_id,
+                                                     host=kwargs.get('host'),
+                                                     port=kwargs.get('port'),
+                                                     passwd=kwargs.get('passwd'),
+                                                     file=kwargs.get('file'),
+                                                     position=kwargs.get('position')))},
+                               timeout=timeout + 3)
+            if not rpc_ret:
+                raise RpcResultError('bond database result is None')
+            if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+                raise RpcResultError('bond database fail %s' % rpc_ret.get('result'))
+            # 绑定状态设置就绪
+            relation.ready = True
+            return rpc_ret
 
     def _address(self, session, dbmaps):
         entitys = map(int, dbmaps.keys())

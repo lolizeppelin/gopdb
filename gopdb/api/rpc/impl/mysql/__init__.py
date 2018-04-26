@@ -48,6 +48,64 @@ MULTIABLEOPTS = frozenset([
     'replicate-ignore-db',
 ])
 
+
+# def test():
+#     try:
+#         if master_host == slave_host:
+#             raise exceptions.UnAcceptableDbError('Master and Salve in same host')
+#         # master do
+#         connection = connformater % dict(user=master.user, passwd=master.passwd,
+#                                          host=master_host, port=master_port, schema='')
+#         engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
+#         with engine.connect() as conn:
+#             LOG.info('Login master database to get pos and file')
+#             r = conn.execute('show master status')
+#             results = r.fetchall()
+#             r.close()
+#         if not results:
+#             raise exceptions.UnAcceptableDbError('Master bind log not open!')
+#         binlog = results[0]
+#         if binlog.get('file')[-1] != '1' or binlog.get('position') > 1000:
+#             raise exceptions.UnAcceptableDbError('Database pos of file error')
+#         # slave do
+#         slave_info = dict(replname='database-%d' % master.database_id,
+#                           host=master_host, port=master_port,
+#                           repluser=repl.get('user'), replpasswd=repl.get('passwd'),
+#                           file=binlog.get('file'), pos=binlog.get('position'))
+#         sqls = ['SHOW SLAVE STATUS']
+#         sqls.append("CHANGE MASTER '%(replname)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
+#                     "MASTER_USER='%(repluser)s',MASTER_PASSWORD='%(replpasswd)s'," \
+#                     "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(pos)s)" % slave_info)
+#         sqls.append('START salve %(replname)s' % slave_info)
+#
+#         connection = connformater % dict(user=slave.user, passwd=slave.passwd,
+#                                          host=slave_host, port=slave_port, schema='')
+#         engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
+#         with engine.connect() as conn:
+#             LOG.info('Login slave database for init')
+#             r = conn.execute(sqls[0])
+#             if LOG.isEnabledFor(logging.DEBUG):
+#                 for row in r.fetchall():
+#                     LOG.debug(str(row))
+#             r.close()
+#             r = conn.execute(sqls[1])
+#             r.close()
+#             LOG.debug('Success add repl info')
+#             try:
+#                 r = conn.execute(sqls[2])
+#             except Exception:
+#                 LOG.error('Start slave fail')
+#                 raise exceptions.UnAcceptableDbError('Start slave fail')
+#             else:
+#                 r.close()
+#     except exceptions.UnAcceptableDbError:
+#         raise
+#     except Exception as e:
+#         if LOG.isEnabledFor(logging.DEBUG):
+#             LOG.exception('Bond slave fail')
+#         raise exceptions.UnAcceptableDbError('Bond slave fail with %s' % e.__class__.__name__)
+
+
 class MultiOrderedDict(OrderedDict):
     def __setitem__(self, key, value,
                     dict_setitem=dict.__setitem__):
@@ -290,6 +348,8 @@ class DatabaseManager(DatabaseManagerBase):
             raise ValueError('Config file not exist')
         args = [SH, MYSQLINSTALL, '--defaults-file=%s' % cfgfile]
         args.extend(self.base_opts)
+        replication = kwargs.pop('replication', None)
+        auth = kwargs.pop('auth')
         logfile = kwargs.get('logfile')
         if not systemutils.POSIX:
             # just for test on windows
@@ -314,9 +374,9 @@ class DatabaseManager(DatabaseManagerBase):
         eventlet.sleep(0)
         self.start(cfgfile)
         eventlet.sleep(3)
-        self._init_passwd(cfgfile, kwargs.get('auth'), kwargs.get('repl'), )
+        results = self._init_passwd(cfgfile, auth, replication)
         if postrun:
-            postrun()
+            postrun(results)
 
     def dump(self, cfgfile, postrun, timeout,
              **kwargs):
@@ -331,7 +391,7 @@ class DatabaseManager(DatabaseManagerBase):
         dbconfig.save(cfgfile)
         systemutils.chmod(cfgfile, 022)
 
-    def _init_passwd(self, cfgfile, auth, repl):
+    def _init_passwd(self, cfgfile, auth, replication):
         """init password for database"""
         conf = CONF[common.DB]
         config = self.config_cls.load(cfgfile)
@@ -349,24 +409,25 @@ class DatabaseManager(DatabaseManagerBase):
                                                                                           conf.localpass),
                 "grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'" % _auth ,
                 "grant grant option on *.* to '%(user)s'@'%(source)s'" % dict(user=_auth.get('user'),
-                                                                              source=_auth.get('source')) ,
-                "FLUSH PRIVILEGES"]
-        if repl:
-            auth = dict(user=repl.get('user'),
-                        passwd=repl.get('passwd'),
-                        source=repl.get('source'),
-                        privileges=common.REPLICATIONRIVILEGES,
-                        )
-            sqls.append(
-                "grant %(privileges) option on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'" % auth)
-        sqls.append('FLUSH PRIVILEGES')
-        if repl:
-            sqls.append('RESET MASTER')
+                                                                              source=_auth.get('source'))
+                ]
+        if replication:
+            sqls.append("grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'"
+                        % replication)
+        sqls.extend([
+            'FLUSH PRIVILEGES',
+            'RESET MASTER'
+            'SHOW MASTER STATUS'
+        ])
+        results = []
         with engine.connect() as conn:
             LOG.info('Login mysql from unix sock success, try init privileges')
             for sql in sqls:
                 LOG.debug(sql)
                 r = conn.execute(sql)
+                results.append(r.fetchall())
                 r.close()
                 # if r.returns_rows:
                 #     r.fetchall()
+        LOG.info('Init privileges finishd')
+        return results
