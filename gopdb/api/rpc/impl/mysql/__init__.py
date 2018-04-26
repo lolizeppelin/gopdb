@@ -425,7 +425,8 @@ class DatabaseManager(DatabaseManagerBase):
             for sql in sqls:
                 LOG.debug(sql)
                 r = conn.execute(sql)
-                results.append(r.fetchall())
+                if r.returns_rows:
+                    results.append(r.fetchall())
                 r.close()
                 # if r.returns_rows:
                 #     r.fetchall()
