@@ -309,7 +309,7 @@ class DatabaseManager(DatabaseManagerBase):
     def _bond_database(self, session, master, slave, relation, **kwargs):
         req = kwargs.pop('req')
         entity = int(slave.reflection_id)
-        with session.begin():
+        with session.begin(subtransactions=True):
             _entity = entity_controller.show(req=req, entity=entity,
                                              endpoint=common.DB, body={'ports': False})['data'][0]
             agent_id = _entity['agent_id']

@@ -133,10 +133,10 @@ class DatabaseManagerBase(object):
             master_ids = model_query(session, GopSalveRelation.master_id,
                                      filter=GopSalveRelation.slave_id == database_id).all()
             if master_ids:
-                query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id.in_(master_ids),
-                                                                      GopDatabase.slave == 0))
+                query = model_query(session, GopDatabase,
+                                    filter=and_(GopDatabase.database_id.in_([m[0] for m in master_ids]),
+                                                GopDatabase.slave == 0))
                 query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
-
                 for m_database in query.all():
                     schemas.extend(m_database.schemas)
         else:

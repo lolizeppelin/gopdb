@@ -245,7 +245,7 @@ class Application(AppEndpointBase):
                         return
                     if bond:
                         LOG.debug('Try bond slave database')
-                        binlog = results[-1]
+                        binlog = results[-1][0]
                         self.client.database_bond(database_id=bond.get('database_id'),
                                                   body={'master': dbinfo.get('database_id'),
                                                         'host': self.manager.local_ip,
@@ -277,6 +277,13 @@ class Application(AppEndpointBase):
         return port
 
     def rpc_create_entity(self, ctxt, entity, **kwargs):
+        memory = psutil.virtual_memory()
+        leftmem = memory.cached / (1024 * 1024) + memory.free / (1024 * 1024)
+        if leftmem < 1000:
+            return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                              resultcode=manager_common.RESULT_ERROR,
+                                              ctxt=ctxt,
+                                              result='create database fail, memory left %d MB' % leftmem)
         entity = int(entity)
         with self.lock(entity, timeout=3):
             if entity in self.entitys:
