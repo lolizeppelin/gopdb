@@ -245,18 +245,15 @@ class Application(AppEndpointBase):
                         return
                     if bond:
                         LOG.debug('Try bond slave database')
-                        for r in results:
-                            # self.client.database_bond(database_id=bond.get('database_id'),
-                            #                           body={'master': dbinfo.get('database_id'),
-                            #                                 'host': self.manager.local_ip,
-                            #                                 'port': port,
-                            #                                 'passwd': replication.get('passwd'),
-                            #                                 'file': None,
-                            #                                 'position': None,
-                            #                                 })
-                            LOG.error('1111111111111111111111111111111')
-                            LOG.error(r)
-                            LOG.error('2222222222222222222222222222222')
+                        binlog = results[-1]
+                        self.client.database_bond(database_id=bond.get('database_id'),
+                                                  body={'master': dbinfo.get('database_id'),
+                                                        'host': self.manager.local_ip,
+                                                        'port': port,
+                                                        'passwd': replication.get('passwd'),
+                                                        'file': binlog[0],
+                                                        'position': binlog[1],
+                                                        })
                     if self._entity_process(entity):
                         self.client.database_update(database_id=dbinfo.get('database_id'),
                                                     body={'status': common.OK})
@@ -365,6 +362,7 @@ class Application(AppEndpointBase):
                 p = self._entity_process(entity)
         if not p:
             return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                              resultcode=manager_common.RESULT_ERROR,
                                               ctxt=ctxt,
                                               result='start entity faile, process not exist after start')
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
@@ -394,3 +392,23 @@ class Application(AppEndpointBase):
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
                                           result=result)
+
+    def rpc_bond_entity(self, ctxt, entity, **kwargs):
+        master = kwargs.pop('master', None)
+        force = kwargs.pop('force', False)
+        dbtype = self._dbtype(entity)
+        dbmanager = utils.impl_cls('rpc', dbtype)
+        cfgfile = self._db_conf(entity, dbtype)
+        with self.lock(entity, timeout=3):
+            p = self._entity_process(entity)
+            if not p:
+                return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                                  ctxt=ctxt,
+                                                  result='bond entity faile, process not exist')
+        LOG.error('================================')
+        LOG.error(str(master))
+        LOG.error('================================')
+        return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                          resultcode=manager_common.RESULT_ERROR,
+                                          ctxt=ctxt,
+                                          result='start bond fail, ')

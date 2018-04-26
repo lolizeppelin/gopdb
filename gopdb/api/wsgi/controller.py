@@ -90,6 +90,7 @@ class DatabaseReuest(BaseContorller):
             'passwd': {'type': 'string', 'minLength': 1, 'description': '同步用户密码'},
             'file': {'type': 'string', 'minLength': 5, 'description': '主库binlog 文件名'},
             'position': {'type': 'integer', 'minimum': 1, 'description': '主库binlog 位置'},
+            'force': {'type': 'boolean', 'description': '强制绑定, 忽略slave检查'},
         }
     }
 
