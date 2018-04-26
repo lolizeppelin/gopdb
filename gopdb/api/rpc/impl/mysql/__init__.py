@@ -360,12 +360,12 @@ class DatabaseManager(DatabaseManagerBase):
         master_name = 'masterdb-%(database_id)s' % auth
         sql = "CHANGE MASTER 'masterdb-%(database_id)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
               "MASTER_USER='%(user)s',MASTER_PASSWORD='%(passwd)s'," \
-              "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(position)s)" % auth
+              "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(position)s" % auth
         LOG.info('Replication connect sql %s' % sql)
         results = []
         with engine.connect() as conn:
             LOG.info('Login mysql from unix sock success, try bond master')
-            r = conn.execute('SHOW SLAVE STATUS')
+            r = conn.execute('SHOW ALL SLAVES STATUS')
             if r.returns_rows:
                 shows = r.fetchall()
                 results.append(shows)
@@ -376,7 +376,7 @@ class DatabaseManager(DatabaseManagerBase):
                 results.append(r.fetchall())
             r.close()
             LOG.info('Connect success, try start slave')
-            r = conn.execute('START SLAVE %s' % master_name)
+            r = conn.execute("START SLAVE '%s'" % master_name)
             if r.returns_rows:
                 results.append(r.fetchall())
             r.close()
