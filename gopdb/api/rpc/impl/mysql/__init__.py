@@ -342,7 +342,7 @@ class DatabaseManager(DatabaseManagerBase):
         else:
             raise ValueError('Process user or cmdline not match')
 
-    def bond(self, cfgfile, postrun, timeout,
+    def bond(self, cfgfile, postrun, timeout, dbinfo,
              **kwargs):
         """bond to master database intance"""
         conf = CONF[common.DB]
@@ -356,7 +356,7 @@ class DatabaseManager(DatabaseManagerBase):
                                                                                 sockfile)
         engine = engines.create_engine(sql_connection=conn,
                                        poolclass=NullPool)
-        auth = privilegeutils.mysql_replprivileges(**master)
+        auth = privilegeutils.mysql_slave_replprivileges(slave_id=dbinfo.get('database_id'), **master)
         master_name = 'masterdb-%(database_id)s' % auth
         sql = "CHANGE MASTER 'masterdb-%(database_id)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
               "MASTER_USER='%(user)s',MASTER_PASSWORD='%(passwd)s'," \
@@ -365,9 +365,17 @@ class DatabaseManager(DatabaseManagerBase):
         results = []
         with engine.connect() as conn:
             LOG.info('Login mysql from unix sock success, try bond master')
+
             r = conn.execute('SHOW ALL SLAVES STATUS')
             if r.returns_rows:
                 shows = r.fetchall()
+                for slave_status in shows:
+                    if slave_status.get('Connection_name') == master_name:
+                        if LOG.isEnabledFor(logging.DEBUG):
+                            for key in slave_status.keys():
+                                LOG.debug('SLAVE %s STATUS ------ %s : %s'
+                                          % (master_name, key, slave_status[key]))
+                                # if slave_status.get('Slave_IO_Running')
                 results.append(shows)
             r.close()
 
@@ -382,7 +390,6 @@ class DatabaseManager(DatabaseManagerBase):
             r.close()
         if postrun:
             postrun(results)
-
 
     def install(self, cfgfile, postrun, timeout, **kwargs):
         """create database intance"""

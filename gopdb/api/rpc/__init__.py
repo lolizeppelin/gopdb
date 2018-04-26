@@ -402,6 +402,12 @@ class Application(AppEndpointBase):
 
     def rpc_bond_entity(self, ctxt, entity, **kwargs):
         dbtype = self._dbtype(entity)
+        dbinfo = self.konwn_database[entity]
+        if dbinfo.get('slave') == 0:
+            return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                              resultcode=manager_common.RESULT_ERROR,
+                                              ctxt=ctxt,
+                                              result='Can not bond, database is master databases?')
         dbmanager = utils.impl_cls('rpc', dbtype)
         cfgfile = self._db_conf(entity, dbtype)
         with self.lock(entity, timeout=3):
@@ -410,8 +416,8 @@ class Application(AppEndpointBase):
                 return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                                   ctxt=ctxt,
                                                   result='bond entity faile, process not exist')
-            dbmanager.bond(cfgfile, postrun=None, timeout=None, **kwargs)
+            dbmanager.bond(cfgfile, postrun=None, timeout=None, dbinfo=dbinfo, **kwargs)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           resultcode=manager_common.RESULT_ERROR,
                                           ctxt=ctxt,
-                                          result='start bond fail, ')
+                                          result='bond to master fail')
