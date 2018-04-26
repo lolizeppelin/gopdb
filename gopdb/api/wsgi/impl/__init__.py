@@ -7,6 +7,7 @@ from sqlalchemy.sql import and_
 from sqlalchemy.sql import or_
 
 from simpleutil.utils import argutils
+from simpleutil.log import log as logging
 from simpleutil.common.exceptions import InvalidArgument
 from simpleservice.ormdb.api import model_count_with_key
 from simpleservice.ormdb.api import model_query
@@ -21,6 +22,7 @@ from gopdb.models import GopSalveRelation
 from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
 
+LOG = logging.getLogger(__name__)
 
 MANAGERCACHE = {}
 
@@ -212,6 +214,11 @@ class DatabaseManagerBase(object):
                 _result.setdefault('affinity', affinity)
                 session.add(_database)
                 session.flush()
+                if bond:
+                    LOG.info('Add GopSalveRelation for database')
+                    relation = GopSalveRelation(master_id=_database.database_id, slave_id=bond.database_id)
+                    session.add(relation)
+                    session.flush()
         self._esure_create(_database, **kwargs)
         _result.setdefault('database_id', _database.database_id)
         return _result

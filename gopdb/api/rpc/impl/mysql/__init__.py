@@ -416,7 +416,7 @@ class DatabaseManager(DatabaseManagerBase):
                         % replication)
         sqls.extend([
             'FLUSH PRIVILEGES',
-            'RESET MASTER'
+            'RESET MASTER',
             'SHOW MASTER STATUS'
         ])
         results = []

@@ -27,7 +27,6 @@ from gopdb import privilegeutils
 from gopdb.api.wsgi import exceptions
 from gopdb.api.wsgi.impl import DatabaseManagerBase
 from gopdb.models import GopDatabase
-from gopdb.models import GopSalveRelation
 
 
 LOG = logging.getLogger(__name__)
@@ -206,11 +205,6 @@ class DatabaseManager(DatabaseManagerBase):
         # 通知端口添加
         threadpool.add_thread(port_controller.unsafe_create,
                               agent_id, common.DB, entity, [port, ])
-        if bond:
-            LOG.debug('Add Slave relations')
-            relation = GopSalveRelation(master_id=database.database_id, slave_id=bond.database_id)
-            session.add(relation)
-            session.flush()
         yield host, port
 
     def _esure_create(self, database, **kwargs):
