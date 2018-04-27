@@ -558,6 +558,7 @@ class DatabaseManagerBase(object):
     def delete_schema(self, database_id, schema, **kwargs):
         """delete schema intance on reflection_id"""
         unquotes = set(kwargs.get('unquotes', []))
+        force = kwargs.get('force', False)
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
         query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
@@ -574,8 +575,18 @@ class DatabaseManagerBase(object):
             _schema = squery.one()
             _result.setdefault('schema_id', _schema.schema_id)
             if _schema.quotes:
-                if unquotes != set([_quote.quote_id for _quote in _schema.quotes]):
-                    raise exceptions.AcceptableSchemaError('Schema in quote, can not be delete')
+                quotes = {}
+                for _quote in _schema.quotes:
+                    quotes[_quote.quote_id] = _quote.desc
+                for quote_id in unquotes:
+                    quotes.pop(quote_id, None)
+                if quotes:
+                    if force:
+                        for quote in _schema.quotes:
+                            if quote.quote_id in quotes.keys():
+                                LOG.warning('Quote %d: [%s] ignore' % (quote.quote_id, quote.desc))
+                    if not force:
+                        raise exceptions.AcceptableSchemaError('Schema in quote, can not be delete')
             with self._delete_schema(session, _database, _schema, **kwargs) as address:
                 host = address[0]
                 port = address[1]

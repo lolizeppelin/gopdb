@@ -4,6 +4,7 @@ import eventlet
 import ConfigParser
 from collections import OrderedDict
 import psutil
+import mysql.connector
 
 from simpleutil.log import log as logging
 from simpleutil.config import cfg
@@ -295,6 +296,36 @@ class DatabaseManager(DatabaseManagerBase):
 
     base_opts = ['--skip-name-resolve']
 
+    def _slave_status(self, user, passwd, sockfile):
+        try:
+            conn = mysql.connector.connect(unix_socket=sockfile,
+                                           user=user,
+                                           password=passwd)
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute('SHOW ALL SLAVES STATUS')
+            cursor.clsoe()
+            conn.close()
+            slaves = cursor.fetchall()
+        except Exception:
+            LOG.error('Get slave status fail')
+            raise
+        return slaves
+
+    def _master_status(self, user, passwd, sockfile):
+        try:
+            conn = mysql.connector.connect(unix_socket=sockfile,
+                                           user=user,
+                                           password=passwd)
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute('SHOW MASTER STATUS')
+            cursor.clsoe()
+            conn.close()
+            slaves = cursor.fetchall()
+        except Exception:
+            LOG.error('Get master status fail')
+            raise
+        return slaves
+
     def status(self, cfgfile, **kwargs):
         """status of database intance"""
 
@@ -363,21 +394,21 @@ class DatabaseManager(DatabaseManagerBase):
               "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(position)s" % auth
         LOG.info('Replication connect sql %s' % sql)
         results = []
+
+        slaves = self._slave_status(user=auth.get('user'),
+                                    passwd=auth.get('passwd'),
+                                    sockfile=sockfile)
+        results.append(slaves)
+
+        for slave_status in slaves:
+            if slave_status.get('Connection_name') == master_name:
+                if LOG.isEnabledFor(logging.DEBUG):
+                    for key in slave_status.keys():
+                        LOG.debug('SLAVE %s STATUS ------ %s : %s'
+                                  % (master_name, key, slave_status[key]))
+
         with engine.connect() as conn:
             LOG.info('Login mysql from unix sock success, try bond master')
-
-            r = conn.execute('SHOW ALL SLAVES STATUS')
-            if r.returns_rows:
-                shows = r.fetchall()
-                for slave_status in shows:
-                    if slave_status.get('Connection_name') == master_name:
-                        if LOG.isEnabledFor(logging.DEBUG):
-                            for key in slave_status.keys():
-                                LOG.debug('SLAVE %s STATUS ------ %s : %s'
-                                          % (master_name, key, slave_status[key]))
-                                # if slave_status.get('Slave_IO_Running')
-                results.append(shows)
-            r.close()
 
             r = conn.execute(sql)
             if r.returns_rows:
