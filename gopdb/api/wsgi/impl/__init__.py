@@ -558,6 +558,7 @@ class DatabaseManagerBase(object):
     def delete_schema(self, database_id, schema, **kwargs):
         """delete schema intance on reflection_id"""
         unquotes = set(kwargs.get('unquotes', []))
+        ignores = set(kwargs.get('ignores', []))
         force = kwargs.get('force', False)
         session = endpoint_session()
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
@@ -578,8 +579,11 @@ class DatabaseManagerBase(object):
                 quotes = {}
                 for _quote in _schema.quotes:
                     quotes[_quote.quote_id] = _quote.desc
-                for quote_id in unquotes:
-                    quotes.pop(quote_id, None)
+                for quote_id, desc in quotes.items():
+                    if quote_id in unquotes:
+                        quotes.pop(quote_id, None)
+                    if desc in ignores:
+                        quotes.pop(quote_id, None)
                 if quotes:
                     if force:
                         for quote in _schema.quotes:
