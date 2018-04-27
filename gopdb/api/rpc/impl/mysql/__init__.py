@@ -466,7 +466,7 @@ class DatabaseManager(DatabaseManagerBase):
                     running = True
 
                 with engine.connect() as conn:
-                    LOG.info('Login mysql from unix sock success, try stop slave then unbond')
+                    LOG.info('Login mysql from unix sock success, try stop unbond')
                     if running:
                         r = conn.execute("STOP SLAVE '%s'" % master_name)
                         if r.returns_rows:
@@ -495,15 +495,28 @@ class DatabaseManager(DatabaseManagerBase):
         engine = engines.create_engine(sql_connection=conn,
                                        poolclass=NullPool)
 
-        sql = "REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % auth
+        revoke = "REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % auth
+        drop = "DROP USER '%(user)s'@'%(source)s'" % auth
         results = []
 
         with engine.connect() as conn:
             LOG.info('Login mysql from unix sock success, try revoke')
-            r = conn.execute(sql)
-            if r.returns_rows:
-                results.append(r.fetchall())
-            r.close()
+            # TODO change Exception Type
+            try:
+                r = conn.execute(revoke)
+                if r.returns_rows:
+                    results.append(r.fetchall())
+                r.close()
+            except Exception as e:
+                LOG.error(e.__class__.__name__)
+
+            try:
+                r = conn.execute(drop)
+                if r.returns_rows:
+                    results.append(r.fetchall())
+                r.close()
+            except Exception as e:
+                LOG.error(e.__class__.__name__)
 
         if postrun:
             postrun(results)
