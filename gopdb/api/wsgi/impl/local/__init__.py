@@ -47,6 +47,7 @@ class DatabaseManager(DatabaseManagerBase):
         {'process': None}
     ]
 
+    # ------------私有部分---------------
     def select_agents(self, dbtype, **kwargs):
         req = kwargs.pop('req')
         return self._select_agents(dbtype, **kwargs)
@@ -86,6 +87,7 @@ class DatabaseManager(DatabaseManagerBase):
             raise InvalidArgument('Target entity no port now')
         return local_ip, port
 
+    # ------------公共部分---------------
     def _select_database(self, session, query, dbtype, **kwargs):
         req = kwargs.pop('req')
 
@@ -152,6 +154,17 @@ class DatabaseManager(DatabaseManagerBase):
         else:
             _filter = None
         yield 'entity', _filter
+
+    def _address(self, session, dbmaps):
+        entitys = map(int, dbmaps.keys())
+        emaps = entity_controller.shows(endpoint=common.DB, entitys=entitys)
+        address_maps = dict()
+        for entity in emaps:
+            entityinfo = emaps[entity]
+            port = entityinfo['ports'][0] if entityinfo['ports'] else -1
+            host = entityinfo['metadata']['local_ip'] if entityinfo['metadata'] else None
+            address_maps[dbmaps[str(entity)]] = dict(host=host, port=port)
+        return address_maps
 
     @contextlib.contextmanager
     def _show_database(self, session, database, **kwargs):
@@ -342,17 +355,69 @@ class DatabaseManager(DatabaseManagerBase):
             relation.ready = True
             return rpc_ret
 
-    def _address(self, session, dbmaps):
-        entitys = map(int, dbmaps.keys())
-        emaps = entity_controller.shows(endpoint=common.DB, entitys=entitys)
-        address_maps = dict()
-        for entity in emaps:
-            entityinfo = emaps[entity]
-            port = entityinfo['ports'][0] if entityinfo['ports'] else -1
-            host = entityinfo['metadata']['local_ip'] if entityinfo['metadata'] else None
-            address_maps[dbmaps[str(entity)]] = dict(host=host, port=port)
-        return address_maps
+    def _unbond_database(self, session, master, slave, relation, **kwargs):
+        req = kwargs.pop('req')
+        entity = int(slave.reflection_id)
+        with session.begin(subtransactions=True):
+            _entity = entity_controller.show(req=req, entity=entity,
+                                             endpoint=common.DB, body={'ports': False})['data'][0]
+            agent_id = _entity['agent_id']
+            metadata = _entity['metadata']
+            if not metadata:
+                raise InvalidArgument('Traget database agent is offline')
+            host = metadata.get('host')
+            target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                        metadata.get('host'))
+            target.namespace = common.DB
+            rpc = get_client()
+            finishtime, timeout = rpcfinishtime()
+            # 发送master信息到从库所在agent
+            rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime + 3, 'agents': [agent_id, ]},
+                               msg={'method': 'unbond_entity',
+                                    'args': dict(entity=entity,
+                                                 force=kwargs.get('force', False),
+                                                 master=dict(
+                                                     database_id=master.database_id,
+                                                     ready=relation.ready,
+                                                     schemas=[schema.schema for schema in master.schemas],
+                                                 ))},
+                               timeout=timeout + 3)
+            if not rpc_ret:
+                raise RpcResultError('unbond database result is None')
+            if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+                raise RpcResultError('unbond database fail %s' % rpc_ret.get('result'))
+            # 绑定状态设置就绪
+            session.delete(relation)
+            session.flush()
+            auth = privilegeutils.mysql_replprivileges(slave.database_id, host)
+            auth['schema'] = '*'
+            return self._drop_database_user(master, auth, req=req)
 
+    def _revoke_database_user(self, database, auth, **kwargs):
+        req = kwargs.pop('req')
+        entity = int(database.reflection_id)
+        _entity = entity_controller.show(req=req, entity=entity,
+                                         endpoint=common.DB, body={'ports': False})['data'][0]
+        agent_id = _entity['agent_id']
+        metadata = _entity['metadata']
+        if not metadata:
+            raise InvalidArgument('Traget database agent is offline')
+        target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                    metadata.get('host'))
+        target.namespace = common.DB
+        rpc = get_client()
+        finishtime, timeout = rpcfinishtime()
+        rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime, 'agents': [agent_id, ]},
+                           msg={'method': 'revoke_entity',
+                                'args': dict(auth=auth)},
+                           timeout=timeout)
+        if not rpc_ret:
+            raise RpcResultError('revoke grant from database result is None')
+        if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+            raise RpcResultError('revoke grant from database fail %s' % rpc_ret.get('result'))
+        return rpc_ret
+
+    # ----------schema action-------------
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):
         req = kwargs.pop('req')

@@ -94,6 +94,16 @@ class DatabaseReuest(BaseContorller):
         }
     }
 
+    UNBONDSLAVE = {
+        'type': 'object',
+        'required': ['master'],
+        'properties': {
+            'master': {'type': 'integer', 'minimum': 1, 'description': '主库ID'},
+            'force': {'type': 'boolean', 'description': '强制解绑, 忽略绑定检查'},
+        }
+    }
+
+
     def reflect(self, req, impl, body=None):
         body = body or {}
         kwargs = dict(req=req)
@@ -257,6 +267,15 @@ class DatabaseReuest(BaseContorller):
         dbresult = dbmanager.bond_database(database_id, **kwargs)
         return resultutils.results(result='slave database success', data=[dbresult, ])
 
+    def unbond(self, req, database_id, body=None):
+        body = body or {}
+        jsonutils.schema_validate(body, self.UNBONDSLAVE)
+        database_id = int(database_id)
+        kwargs = dict(req=req)
+        kwargs.update(body)
+        dbmanager = _impl(database_id)
+        dbresult = dbmanager.unbond_database(database_id, **kwargs)
+        return resultutils.results(result='slave database success', data=[dbresult, ])
 
 @singleton.singleton
 class SchemaReuest(BaseContorller):

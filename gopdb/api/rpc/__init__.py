@@ -251,9 +251,10 @@ class Application(AppEndpointBase):
                                                         'host': self.manager.local_ip,
                                                         'port': port,
                                                         'passwd': replication.get('passwd'),
-                                                        'file': binlog[0],
-                                                        'position': binlog[1],
+                                                        'file': binlog.get('File'),
+                                                        'position': binlog.get('Position'),
                                                         })
+                    del results[:]
                     if self._entity_process(entity):
                         self.client.database_update(database_id=dbinfo.get('database_id'),
                                                     body={'status': common.OK})
@@ -407,7 +408,7 @@ class Application(AppEndpointBase):
             return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                               resultcode=manager_common.RESULT_ERROR,
                                               ctxt=ctxt,
-                                              result='Can not bond, database is master databases?')
+                                              result='Can not bond, database is master database?')
         dbmanager = utils.impl_cls('rpc', dbtype)
         cfgfile = self._db_conf(entity, dbtype)
         with self.lock(entity, timeout=3):
@@ -420,3 +421,39 @@ class Application(AppEndpointBase):
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
                                           result='bond to master success')
+
+    def rpc_unbond_entity(self, ctxt, entity, **kwargs):
+        dbtype = self._dbtype(entity)
+        dbinfo = self.konwn_database[entity]
+        if dbinfo.get('slave') == 0:
+            return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                              resultcode=manager_common.RESULT_ERROR,
+                                              ctxt=ctxt,
+                                              result='Can not unbond, database is master database?')
+        dbmanager = utils.impl_cls('rpc', dbtype)
+        cfgfile = self._db_conf(entity, dbtype)
+        with self.lock(entity, timeout=3):
+            p = self._entity_process(entity)
+            if not p:
+                return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                                  ctxt=ctxt,
+                                                  result='unbond entity faile, process not exist')
+            dbmanager.unbond(cfgfile, postrun=None, timeout=None, **kwargs)
+        return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                          ctxt=ctxt,
+                                          result='unbond to master success')
+
+    def rpc_revoke_entity(self, ctxt, entity, **kwargs):
+        dbtype = self._dbtype(entity)
+        dbmanager = utils.impl_cls('rpc', dbtype)
+        cfgfile = self._db_conf(entity, dbtype)
+        with self.lock(entity, timeout=3):
+            p = self._entity_process(entity)
+            if not p:
+                return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                                  ctxt=ctxt,
+                                                  result='revoke entity faile, process not exist')
+            dbmanager.revoke(cfgfile, postrun=None, timeout=None, **kwargs)
+        return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                          ctxt=ctxt,
+                                          result='revoke to master success')

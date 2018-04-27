@@ -320,11 +320,11 @@ class DatabaseManager(DatabaseManagerBase):
             cursor.execute('SHOW MASTER STATUS')
             cursor.clsoe()
             conn.close()
-            slaves = cursor.fetchall()
+            masters = cursor.fetchall()
         except Exception:
             LOG.error('Get master status fail')
             raise
-        return slaves
+        return masters
 
     def status(self, cfgfile, **kwargs):
         """status of database intance"""
@@ -395,8 +395,8 @@ class DatabaseManager(DatabaseManagerBase):
         LOG.info('Replication connect sql %s' % sql)
         results = []
 
-        slaves = self._slave_status(user=auth.get('user'),
-                                    passwd=auth.get('passwd'),
+        slaves = self._slave_status(user=conf.localroot,
+                                    passwd=conf.localpass,
                                     sockfile=sockfile)
         results.append(slaves)
 
@@ -404,7 +404,7 @@ class DatabaseManager(DatabaseManagerBase):
             if slave_status.get('Connection_name') == master_name:
                 if LOG.isEnabledFor(logging.DEBUG):
                     for key in slave_status.keys():
-                        LOG.debug('SLAVE %s STATUS ------ %s : %s'
+                        LOG.debug('BOND FIND OLD SLAVE %s STATUS ------ %s : %s'
                                   % (master_name, key, slave_status[key]))
 
         with engine.connect() as conn:
@@ -419,6 +419,79 @@ class DatabaseManager(DatabaseManagerBase):
             if r.returns_rows:
                 results.append(r.fetchall())
             r.close()
+        if postrun:
+            postrun(results)
+
+    def unbond(self, cfgfile, postrun, timeout,
+               **kwargs):
+        """bond to master database intance"""
+        conf = CONF[common.DB]
+        master = kwargs.pop('master')
+        force = kwargs.pop('force', False)
+        config = self.config_cls.load(cfgfile)
+        sockfile = config.get('socket')
+        LOG.info('Try bond master for mysql %s' % sockfile)
+        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % (conf.localroot,
+                                                                                conf.localpass,
+                                                                                sockfile)
+        engine = engines.create_engine(sql_connection=conn,
+                                       poolclass=NullPool)
+
+        results = []
+
+        slaves = self._slave_status(user=conf.localroot,
+                                    passwd=conf.localpass,
+                                    sockfile=sockfile)
+        results.append(slaves)
+        master_name = 'masterdb-%(database_id)s' % master.get('database_id')
+        schemas = master.get('schemas')
+        ready = master.get('ready')
+
+        for slave_status in slaves:
+            if slave_status.get('Connection_name') == master_name:
+                if LOG.isEnabledFor(logging.DEBUG):
+                    for key in slave_status.keys():
+                        LOG.debug('UNBOND SLAVE %s STATUS ------ %s : %s'
+                                  % (master_name, key, slave_status[key]))
+
+        with engine.connect() as conn:
+            LOG.info('Login mysql from unix sock success, try stop slave then unbond')
+            r = conn.execute("STOP SLAVE '%s'" % master_name)
+            if r.returns_rows:
+                results.append(r.fetchall())
+            r.close()
+
+            r = conn.execute("RESET SLAVE '%s'" % master_name)
+            if r.returns_rows:
+                results.append(r.fetchall())
+            r.close()
+        if postrun:
+            postrun(results)
+
+    def revoke(self, cfgfile, postrun, timeout,
+               **kwargs):
+        """bond to master database intance"""
+        conf = CONF[common.DB]
+        auth = kwargs.pop('auth')
+        config = self.config_cls.load(cfgfile)
+        sockfile = config.get('socket')
+        LOG.info('Try bond master for mysql %s' % sockfile)
+        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % (conf.localroot,
+                                                                                conf.localpass,
+                                                                                sockfile)
+        engine = engines.create_engine(sql_connection=conn,
+                                       poolclass=NullPool)
+
+        sql = "REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % auth
+        results = []
+
+        with engine.connect() as conn:
+            LOG.info('Login mysql from unix sock success, try revoke')
+            r = conn.execute(sql)
+            if r.returns_rows:
+                results.append(r.fetchall())
+            r.close()
+
         if postrun:
             postrun(results)
 
@@ -497,7 +570,6 @@ class DatabaseManager(DatabaseManagerBase):
         sqls.extend([
             'FLUSH PRIVILEGES',
             'RESET MASTER',
-            'SHOW MASTER STATUS'
         ])
         results = []
         with engine.connect() as conn:
@@ -511,4 +583,5 @@ class DatabaseManager(DatabaseManagerBase):
                 # if r.returns_rows:
                 #     r.fetchall()
         LOG.info('Init privileges finishd')
+        results.append(self._master_status(conf.localroot, conf.localpass, sockfile))
         return results

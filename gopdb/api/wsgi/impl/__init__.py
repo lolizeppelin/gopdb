@@ -121,6 +121,20 @@ class DatabaseManagerBase(object):
     def _reflect_database(self, session, **kwargs):
         """impl reflect code"""
 
+    def address(self, databases):
+        session = endpoint_session(readonly=True)
+        query = model_query(session, GopDatabase,
+                            filter=GopDatabase.database_id.in_(databases))
+        databases = query.all()
+        maps = dict()
+        for database in databases:
+            maps[database.reflection_id] = database.database_id
+        return self._address(session, maps)
+
+    @abc.abstractmethod
+    def _address(self, session, dbmaps):
+        """impl get database address code"""
+
     def show_database(self, database_id, **kwargs):
         """show database info"""
         session = endpoint_session(readonly=True)
@@ -371,20 +385,48 @@ class DatabaseManagerBase(object):
     def _bond_database(self, session, master, slave, relation, **kwargs):
         """impl bond slave database"""
 
-
-    def address(self, databases):
-        session = endpoint_session(readonly=True)
-        query = model_query(session, GopDatabase,
-                            filter=GopDatabase.database_id.in_(databases))
-        databases = query.all()
-        maps = dict()
-        for database in databases:
-            maps[database.reflection_id] = database.database_id
-        return self._address(session, maps)
+    def unbond_database(self, database_id, **kwargs):
+        master_id = kwargs.pop('master')
+        force = kwargs.get('force')
+        master = None
+        slave = None
+        relation = None
+        session = endpoint_session()
+        query = model_query(session, GopDatabase, filter=GopDatabase.database_id.in_([database_id, master_id]))
+        query = query.options(joinedload(GopDatabase.slaves, innerjoin=False))
+        with session.begin(subtransactions=True):
+            for database in query:
+                if database.database_id == database_id:
+                    slave = database
+                elif database.database_id == master_id:
+                    master = database
+            # 校验主从
+            if slave is None or slave.slave <= 0:
+                raise InvalidArgument('slave database with id %d can not be found' % database_id)
+            if slave.status != common.OK:
+                raise InvalidArgument('Slave database is not active')
+            if master is None or master.slave > 0:
+                raise InvalidArgument('Master database with id %d can not be found' % master_id)
+            if master.impl != slave.impl or master.dbtype != slave.dbtype:
+                raise InvalidArgument('Master and slave not the same type or impl')
+            for _relation in master.slaves:
+                if _relation.slave_id == database_id:
+                    # 找到绑定关系
+                    relation = _relation
+                    break
+            if not relation:
+                raise InvalidArgument('Target slave database no relation with %d' % master.database_id)
+            if master.schemas and not force:
+                raise InvalidArgument('Schemas in master database, can not unbond without argv force')
+            return self._bond_database(session, master, slave, relation, **kwargs)
 
     @abc.abstractmethod
-    def _address(self, session, dbmaps):
-        """impl get database address code"""
+    def _unbond_database(self, session, master, slave, relation, **kwargs):
+        """impl unbond slave database"""
+
+    @abc.abstractmethod
+    def _revoke_database_user(self, database, auth, **kwargs):
+        """impl unbond slave database"""
 
     # ----------schema action-------------
 

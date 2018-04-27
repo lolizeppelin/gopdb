@@ -57,6 +57,15 @@ class DatabaseManager(DatabaseManagerBase):
                                ))
         return result
 
+    def _address(self, session, dbmaps):
+        record_ids = map(int, dbmaps.keys())
+        _records = model_query(session, RecordDatabase,
+                               filter=RecordDatabase.record_id.in_(record_ids))
+        address_maps = dict()
+        for _record in _records:
+            address_maps[dbmaps[str(_records.record_id)]] = dict(host=_record.host, port=_record.port)
+        return address_maps
+
     @contextlib.contextmanager
     def _show_database(self, session, database, **kwargs):
         """show database info"""
@@ -188,14 +197,9 @@ class DatabaseManager(DatabaseManagerBase):
         #         LOG.exception('Bond slave fail')
         #     raise exceptions.UnAcceptableDbError('Bond slave fail with %s' % e.__class__.__name__)
 
-    def _address(self, session, dbmaps):
-        record_ids = map(int, dbmaps.keys())
-        _records = model_query(session, RecordDatabase,
-                              filter=RecordDatabase.record_id.in_(record_ids))
-        address_maps = dict()
-        for _record in _records:
-            address_maps[dbmaps[str(_records.record_id)]] = dict(host=_record.host, port=_record.port)
-        return address_maps
+    def _unbond_database(self, session, master, slave, relation, **kwargs):
+        """impl unbond slave database"""
+        raise NotImplementedError('Wait!!!')
 
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):

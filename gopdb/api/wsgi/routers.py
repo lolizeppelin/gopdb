@@ -41,6 +41,7 @@ class Routers(router.RoutersBase):
         collection.member.link('stop', method='POST')
         collection.member.link('status', method='GET')
         collection.member.link('bond', method='POST')
+        collection.member.link('bond', name='unbond', method='DELETE', action='unbond')
 
 
         resource_name = 'schema'
