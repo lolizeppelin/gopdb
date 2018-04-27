@@ -201,6 +201,10 @@ class DatabaseManager(DatabaseManagerBase):
         """impl unbond slave database"""
         raise NotImplementedError('Wait!!!')
 
+    def _revoke_database_user(self, database, auth, **kwargs):
+        """impl unbond slave database"""
+        raise NotImplementedError('Wait!!!')
+
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):
         _record = model_query(session, RecordDatabase,

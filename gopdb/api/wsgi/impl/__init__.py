@@ -418,7 +418,7 @@ class DatabaseManagerBase(object):
                 raise InvalidArgument('Target slave database no relation with %d' % master.database_id)
             if master.schemas and not force:
                 raise InvalidArgument('Schemas in master database, can not unbond without argv force')
-            return self._bond_database(session, master, slave, relation, **kwargs)
+            return self._unbond_database(session, master, slave, relation, **kwargs)
 
     @abc.abstractmethod
     def _unbond_database(self, session, master, slave, relation, **kwargs):

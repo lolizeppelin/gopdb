@@ -303,7 +303,7 @@ class DatabaseManager(DatabaseManagerBase):
                                            password=passwd)
             cursor = conn.cursor(dictionary=True)
             cursor.execute('SHOW ALL SLAVES STATUS')
-            cursor.clsoe()
+            cursor.close()
             conn.close()
             slaves = cursor.fetchall()
         except Exception:
@@ -318,7 +318,7 @@ class DatabaseManager(DatabaseManagerBase):
                                            password=passwd)
             cursor = conn.cursor(dictionary=True)
             cursor.execute('SHOW MASTER STATUS')
-            cursor.clsoe()
+            cursor.close()
             conn.close()
             masters = cursor.fetchall()
         except Exception:
