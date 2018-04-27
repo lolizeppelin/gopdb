@@ -414,7 +414,8 @@ class DatabaseManagerBase(object):
                        desc=_schema.desc)
 
         if show_quotes:
-            _result.setdefault('quotes', [_quote.quote_id for _quote in _schema.quotes])
+            _result.setdefault('quotes', [dict(quote_id=_quote.quote_id, desc=_quote.desc)
+                                          for _quote in _schema.quotes])
 
         if secret:
             _result.update({'user': _schema.user,
