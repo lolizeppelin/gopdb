@@ -365,7 +365,6 @@ class DatabaseManager(DatabaseManagerBase):
             metadata = _entity['metadata']
             if not metadata:
                 raise InvalidArgument('Traget database agent is offline')
-            host = metadata.get('host')
             target = targetutils.target_agent_by_string(metadata.get('agent_type'),
                                                         metadata.get('host'))
             target.namespace = common.DB
@@ -389,9 +388,9 @@ class DatabaseManager(DatabaseManagerBase):
             # 绑定状态设置就绪
             session.delete(relation)
             session.flush()
-            auth = privilegeutils.mysql_replprivileges(slave.database_id, host)
+            auth = privilegeutils.mysql_replprivileges(slave.database_id, metadata.get('local_ip'))
             auth['schema'] = '*'
-            return self._drop_database_user(master, auth, req=req)
+            return self._revoke_database_user(master, auth, req=req)
 
     def _revoke_database_user(self, database, auth, **kwargs):
         req = kwargs.pop('req')
@@ -409,7 +408,7 @@ class DatabaseManager(DatabaseManagerBase):
         finishtime, timeout = rpcfinishtime()
         rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime, 'agents': [agent_id, ]},
                            msg={'method': 'revoke_entity',
-                                'args': dict(auth=auth)},
+                                'args': dict(entity=entity, auth=auth)},
                            timeout=timeout)
         if not rpc_ret:
             raise RpcResultError('revoke grant from database result is None')

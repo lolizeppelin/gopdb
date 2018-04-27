@@ -275,7 +275,7 @@ class DatabaseReuest(BaseContorller):
         kwargs.update(body)
         dbmanager = _impl(database_id)
         dbresult = dbmanager.unbond_database(database_id, **kwargs)
-        return resultutils.results(result='slave database success', data=[dbresult, ])
+        return resultutils.results(result='unbond slave database success', data=[dbresult, ])
 
 @singleton.singleton
 class SchemaReuest(BaseContorller):

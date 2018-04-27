@@ -303,9 +303,9 @@ class DatabaseManager(DatabaseManagerBase):
                                            password=passwd)
             cursor = conn.cursor(dictionary=True)
             cursor.execute('SHOW ALL SLAVES STATUS')
+            slaves = cursor.fetchall()
             cursor.close()
             conn.close()
-            slaves = cursor.fetchall()
         except Exception:
             LOG.error('Get slave status fail')
             raise
@@ -318,9 +318,9 @@ class DatabaseManager(DatabaseManagerBase):
                                            password=passwd)
             cursor = conn.cursor(dictionary=True)
             cursor.execute('SHOW MASTER STATUS')
+            masters = cursor.fetchall()
             cursor.close()
             conn.close()
-            masters = cursor.fetchall()
         except Exception:
             LOG.error('Get master status fail')
             raise
@@ -430,7 +430,7 @@ class DatabaseManager(DatabaseManagerBase):
         force = kwargs.pop('force', False)
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
-        LOG.info('Try bond master for mysql %s' % sockfile)
+        LOG.info('Try unbond master for mysql %s' % sockfile)
         conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % (conf.localroot,
                                                                                 conf.localpass,
                                                                                 sockfile)
@@ -443,7 +443,7 @@ class DatabaseManager(DatabaseManagerBase):
                                     passwd=conf.localpass,
                                     sockfile=sockfile)
         results.append(slaves)
-        master_name = 'masterdb-%(database_id)s' % master.get('database_id')
+        master_name = 'masterdb-%(database_id)s' % master
         schemas = master.get('schemas')
         ready = master.get('ready')
 
@@ -453,18 +453,31 @@ class DatabaseManager(DatabaseManagerBase):
                     for key in slave_status.keys():
                         LOG.debug('UNBOND SLAVE %s STATUS ------ %s : %s'
                                   % (master_name, key, slave_status[key]))
+                        # TODO
+                        #  Exec_Master_Log_Pos = 0
+                        #  Master_Log_File
+                        #  Slave_IO_Running  = No
+                        #  Slave_SQL_Running  = No
+                        #  Read_Master_Log_Pos  = 325
+                        #  Exec_Master_Log_Pos  = 325
+                running = False
+                if slave_status.get('Slave_IO_Running').lower() == 'yes' \
+                        or slave_status.get('Slave_SQL_Running').lower() == 'yes':
+                    running = True
 
-        with engine.connect() as conn:
-            LOG.info('Login mysql from unix sock success, try stop slave then unbond')
-            r = conn.execute("STOP SLAVE '%s'" % master_name)
-            if r.returns_rows:
-                results.append(r.fetchall())
-            r.close()
+                with engine.connect() as conn:
+                    LOG.info('Login mysql from unix sock success, try stop slave then unbond')
+                    if running:
+                        r = conn.execute("STOP SLAVE '%s'" % master_name)
+                        if r.returns_rows:
+                            results.append(r.fetchall())
+                        r.close()
 
-            r = conn.execute("RESET SLAVE '%s'" % master_name)
-            if r.returns_rows:
-                results.append(r.fetchall())
-            r.close()
+                    r = conn.execute("RESET SLAVE '%s'" % master_name)
+                    if r.returns_rows:
+                        results.append(r.fetchall())
+                    r.close()
+                break
         if postrun:
             postrun(results)
 
@@ -475,7 +488,7 @@ class DatabaseManager(DatabaseManagerBase):
         auth = kwargs.pop('auth')
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
-        LOG.info('Try bond master for mysql %s' % sockfile)
+        LOG.info('Try revoke from mysql %s' % sockfile)
         conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % (conf.localroot,
                                                                                 conf.localpass,
                                                                                 sockfile)
