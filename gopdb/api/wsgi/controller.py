@@ -416,15 +416,14 @@ class SchemaReuest(BaseContorller):
         # glock = get_global().lock('entitys')
         # with glock(common.DB, [entity, ]):
         if slave:
+            slaves = [_slave.slave_id for _slave in _database.slaves if _slave.ready]
             if slave_id:
-                slaves = [_slave.slave_id for _slave in _database.slaves]
                 if slave_id not in slaves:
-                    raise exceptions.AcceptableDbError('Slave %d not found' % slave)
+                    raise exceptions.AcceptableDbError('Slave %d not found or not ready' % slave)
                 quote_database_id = slave_id
             else:
-                if _database.slaves:
-                    # TODO auto select slave database
-                    quote_database_id = _database.slaves[0]
+                if slaves:
+                    quote_database_id = slaves[0]
                 else:
                     LOG.warning('Not slave database, use master database as slave')
             user = _schema.ro_user
