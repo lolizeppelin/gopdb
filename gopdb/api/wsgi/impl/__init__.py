@@ -6,8 +6,8 @@ import six
 from gopdb import common
 from gopdb import privilegeutils
 from gopdb import utils
-from gopdb.api import endpoint_session, exceptions
-from gopdb.api.wsgi import exceptions
+from gopdb.api import endpoint_session
+from gopdb.api import exceptions
 from gopdb.models import GopDatabase
 from gopdb.models import GopSalveRelation
 from gopdb.models import GopSchema
