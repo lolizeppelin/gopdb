@@ -543,6 +543,7 @@ class DatabaseManager(DatabaseManagerBase):
         _auth = dict(user=auth.get('user'), passwd=auth.get('passwd'),
                      privileges=common.ALLPRIVILEGES, source=auth.get('source') or '%')
         sqls = ["drop database test",
+                "use mysql",
                 "truncate table db",
                 "delete from user where host != 'localhost' or user != 'root'",
                 "update user set user='%s', password=password('%s') where user='root'" % (conf.localroot,
