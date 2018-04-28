@@ -357,13 +357,15 @@ class DatabaseManager(DatabaseManagerBase):
                             LOG.debug('BOND FIND OLD SLAVE %s STATUS ------ %s : %s'
                                       % (master_name, key, slave_status[key]))
 
-            r = conn.execute(sql)
-            r.close()
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            cursor.close()
 
             LOG.info('Connect to master success, try start slave')
 
-            r = conn.execute("START SLAVE '%s'" % master_name)
-            r.close()
+            cursor = conn.cursor()
+            cursor.execute("START SLAVE '%s'" % master_name)
+            cursor.close()
 
             LOG.info('START SLAVE %s success' % master_name)
 
@@ -405,11 +407,13 @@ class DatabaseManager(DatabaseManagerBase):
                         running = True
 
                     if running:
-                        r = conn.execute("STOP SLAVE '%s'" % master_name)
-                        r.close()
+                        cursor = conn.cursor()
+                        cursor.execute("STOP SLAVE '%s'" % master_name)
+                        cursor.close()
 
-                    r = conn.execute("RESET SLAVE '%s'" % master_name)
-                    r.close()
+                    cursor = conn.cursor()
+                    cursor.execute("RESET SLAVE '%s'" % master_name)
+                    cursor.close()
                 break
         if postrun:
             postrun()
@@ -430,14 +434,16 @@ class DatabaseManager(DatabaseManagerBase):
 
             # TODO change Exception Type
             try:
-                r = conn.execute(revoke)
-                r.close()
+                cursor = conn.cursor()
+                cursor.execute(revoke)
+                cursor.close()
             except Exception as e:
                 LOG.error(e.__class__.__name__)
 
             try:
-                r = conn.execute(drop)
-                r.close()
+                cursor = conn.cursor()
+                cursor.execute(drop)
+                cursor.close()
             except Exception as e:
                 LOG.error(e.__class__.__name__)
 
@@ -472,8 +478,9 @@ class DatabaseManager(DatabaseManagerBase):
                 LOG.warning('Database add slave with schemas already exist')
             for sql in sqls:
                 LOG.debug(sql)
-                r = conn.execute(sql)
-                r.close()
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                cursor.close()
             binlog = self._master_status(conn)
         if postrun:
             postrun(binlog, schemas)
@@ -557,8 +564,9 @@ class DatabaseManager(DatabaseManagerBase):
 
             for sql in sqls:
                 LOG.debug(sql)
-                r = conn.execute(sql)
-                r.close()
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                cursor.close()
             LOG.info('Init privileges finishd')
             binlog = self._master_status(conn)
 
