@@ -264,11 +264,11 @@ class DatabaseManager(DatabaseManagerBase):
         return schemas
 
     @contextlib.contextmanager
-    def _lower_conn(self, user, passwd, sockfile):
-        conn = mysql.connector.connect(unix_socket=sockfile,
-                                       user=user,
-                                       password=passwd,
-                                       raise_on_warnings=True)
+    def _lower_conn(self, user, passwd, sockfile, schema=None):
+        kwargs = dict(user=user, passwd=passwd, sockfile=sockfile, raise_on_warnings=True)
+        if schema:
+            kwargs['database'] = schema
+        conn = mysql.connector.connect(**kwargs)
         try:
             yield conn
         except Exception as e:
@@ -543,7 +543,6 @@ class DatabaseManager(DatabaseManagerBase):
         _auth = dict(user=auth.get('user'), passwd=auth.get('passwd'),
                      privileges=common.ALLPRIVILEGES, source=auth.get('source') or '%')
         sqls = ["drop database test",
-                "use mysql",
                 "truncate table db",
                 "delete from user where host != 'localhost' or user != 'root'",
                 "update user set user='%s', password=password('%s') where user='root'" % (conf.localroot,
@@ -560,9 +559,8 @@ class DatabaseManager(DatabaseManagerBase):
             'RESET MASTER',
         ])
 
-        with self._lower_conn('root', '', sockfile) as conn:
+        with self._lower_conn(user='root', passwd='', sockfile=sockfile, schema='mysql') as conn:
             LOG.info('Login mysql from unix sock %s success, try init database' % sockfile)
-
             for sql in sqls:
                 LOG.debug(sql)
                 cursor = conn.cursor()
