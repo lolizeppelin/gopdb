@@ -1,7 +1,6 @@
 # -*- coding:utf-8 -*-
 import contextlib
 import eventlet
-
 from sqlalchemy.pool import NullPool
 
 from simpleutil.common.exceptions import InvalidArgument
@@ -13,20 +12,19 @@ from simpleservice.ormdb.argformater import connformater
 from simpleservice.ormdb.engines import create_engine
 from simpleservice.ormdb.tools import utils
 
+from gopdb import common
+from gopdb import privilegeutils
+from gopdb.api import exceptions
+from gopdb.api.wsgi.impl import DatabaseManagerBase
+from gopdb.models import GopDatabase
 from goperation import threadpool
 from goperation.manager import common as manager_common
 from goperation.manager.api import get_client
 from goperation.manager.api import rpcfinishtime
 from goperation.manager.utils import targetutils
 from goperation.manager.wsgi.entity.controller import EntityReuest
-from goperation.manager.wsgi.port.controller import PortReuest
 from goperation.manager.wsgi.exceptions import RpcResultError
-
-from gopdb import common
-from gopdb import privilegeutils
-from gopdb.api.wsgi import exceptions
-from gopdb.api.wsgi.impl import DatabaseManagerBase
-from gopdb.models import GopDatabase
+from goperation.manager.wsgi.port.controller import PortReuest
 
 
 LOG = logging.getLogger(__name__)
@@ -345,7 +343,9 @@ class DatabaseManager(DatabaseManagerBase):
                                                      port=kwargs.get('port'),
                                                      passwd=kwargs.get('passwd'),
                                                      file=kwargs.get('file'),
-                                                     position=kwargs.get('position')))},
+                                                     position=kwargs.get('position'),
+                                                     schemas=kwargs.get('schemas')
+                                                 ))},
                                timeout=timeout + 3)
             if not rpc_ret:
                 raise RpcResultError('bond database result is None')

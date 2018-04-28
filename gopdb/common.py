@@ -10,3 +10,5 @@ UNACTIVE = -1
 OK = 0
 
 VERSIONMAP = {}
+
+IGNORES = {'mysql': frozenset(['information_schema', 'performance_schema', 'sys', 'mysql'])}

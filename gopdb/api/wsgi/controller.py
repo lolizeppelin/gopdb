@@ -29,7 +29,7 @@ from goperation.manager.wsgi.exceptions import RpcResultError
 from gopdb import common
 from gopdb import utils
 from gopdb.api import endpoint_session
-from gopdb.api.wsgi import exceptions
+from gopdb.api import exceptions
 from gopdb.api.wsgi.impl import _address
 from gopdb.api.wsgi.impl import _impl
 from gopdb.models import GopDatabase
@@ -91,6 +91,8 @@ class DatabaseReuest(BaseContorller):
             'file': {'type': 'string', 'minLength': 5, 'description': '主库binlog 文件名'},
             'position': {'type': 'integer', 'minimum': 1, 'description': '主库binlog 位置'},
             'force': {'type': 'boolean', 'description': '强制绑定, 忽略slave检查'},
+            'schemas': {'type': 'array', 'minItems': 1, 'description': '主数据库scheam列表',
+                        'items': {'type': 'string', 'minLength': 1, 'description': '主数据库scheam名'}},
         }
     }
 
@@ -100,6 +102,8 @@ class DatabaseReuest(BaseContorller):
         'properties': {
             'master': {'type': 'integer', 'minimum': 1, 'description': '主库ID'},
             'force': {'type': 'boolean', 'description': '强制解绑, 忽略绑定检查'},
+            'schemas': {'type': 'array', 'minItems': 1, 'description': '数据库scheam列表',
+                        'items': {'type': 'string', 'minLength': 1, 'description': '数据库scheam名'}},
         }
     }
 

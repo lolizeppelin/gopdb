@@ -1,5 +1,6 @@
 import six
 import os
+import contextlib
 import eventlet
 import ConfigParser
 from collections import OrderedDict
@@ -10,13 +11,11 @@ from simpleutil.log import log as logging
 from simpleutil.config import cfg
 from simpleutil.utils import systemutils
 
-from simpleservice.ormdb import engines
-from sqlalchemy.pool import NullPool
-
 import goperation
 
 from gopdb import common
 from gopdb import privilegeutils
+from gopdb.api import exceptions
 from gopdb.api.rpc.impl import DatabaseConfigBase
 from gopdb.api.rpc.impl import DatabaseManagerBase
 
@@ -51,69 +50,13 @@ MULTIABLEOPTS = frozenset([
 ])
 
 
-# def test():
-#     try:
-#         if master_host == slave_host:
-#             raise exceptions.UnAcceptableDbError('Master and Salve in same host')
-#         # master do
-#         connection = connformater % dict(user=master.user, passwd=master.passwd,
-#                                          host=master_host, port=master_port, schema='')
-#         engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
-#         with engine.connect() as conn:
-#             LOG.info('Login master database to get pos and file')
-#             r = conn.execute('show master status')
-#             results = r.fetchall()
-#             r.close()
-#         if not results:
-#             raise exceptions.UnAcceptableDbError('Master bind log not open!')
-#         binlog = results[0]
-#         if binlog.get('file')[-1] != '1' or binlog.get('position') > 1000:
-#             raise exceptions.UnAcceptableDbError('Database pos of file error')
-#         # slave do
-#         slave_info = dict(replname='database-%d' % master.database_id,
-#                           host=master_host, port=master_port,
-#                           repluser=repl.get('user'), replpasswd=repl.get('passwd'),
-#                           file=binlog.get('file'), pos=binlog.get('position'))
-#         sqls = ['SHOW SLAVE STATUS']
-#         sqls.append("CHANGE MASTER '%(replname)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
-#                     "MASTER_USER='%(repluser)s',MASTER_PASSWORD='%(replpasswd)s'," \
-#                     "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(pos)s)" % slave_info)
-#         sqls.append('START salve %(replname)s' % slave_info)
-#
-#         connection = connformater % dict(user=slave.user, passwd=slave.passwd,
-#                                          host=slave_host, port=slave_port, schema='')
-#         engine = create_engine(connection, thread_checkin=False, poolclass=NullPool)
-#         with engine.connect() as conn:
-#             LOG.info('Login slave database for init')
-#             r = conn.execute(sqls[0])
-#             if LOG.isEnabledFor(logging.DEBUG):
-#                 for row in r.fetchall():
-#                     LOG.debug(str(row))
-#             r.close()
-#             r = conn.execute(sqls[1])
-#             r.close()
-#             LOG.debug('Success add repl info')
-#             try:
-#                 r = conn.execute(sqls[2])
-#             except Exception:
-#                 LOG.error('Start slave fail')
-#                 raise exceptions.UnAcceptableDbError('Start slave fail')
-#             else:
-#                 r.close()
-#     except exceptions.UnAcceptableDbError:
-#         raise
-#     except Exception as e:
-#         if LOG.isEnabledFor(logging.DEBUG):
-#             LOG.exception('Bond slave fail')
-#         raise exceptions.UnAcceptableDbError('Bond slave fail with %s' % e.__class__.__name__)
-
-
 class MultiOrderedDict(OrderedDict):
     def __setitem__(self, key, value,
                     dict_setitem=dict.__setitem__):
         if key in MULTIABLEOPTS and key in self:
             if isinstance(self[key], list):
-                self[key].append(value)
+                if value not in self[key]:
+                    self[key].append(value)
                 return
             else:
                 value = [self[key], value]
@@ -140,10 +83,10 @@ class MultiConfigParser(ConfigParser.ConfigParser):
                     if isinstance(value, list):
                         for v in value:
                             line = " = ".join((key, str(v).replace('\n', '\n\t')))
-                            fp.write("%s\n" % (line))
+                            fp.write("%s\n" % line)
                     else:
                         key = " = ".join((key, str(value).replace('\n', '\n\t')))
-                        fp.write("%s\n" % (key))
+                        fp.write("%s\n" % key)
             fp.write("\n")
 
 
@@ -290,41 +233,51 @@ class MysqlConfig(DatabaseConfigBase):
             config.set('mysqld', 'expire_logs_days', conf.expire_log_days)
             config.set('mysqld', 'max_binlog_size', 270532608)
 
+
 class DatabaseManager(DatabaseManagerBase):
 
     config_cls = MysqlConfig
 
     base_opts = ['--skip-name-resolve']
 
-    def _slave_status(self, user, passwd, sockfile):
-        try:
-            conn = mysql.connector.connect(unix_socket=sockfile,
-                                           user=user,
-                                           password=passwd)
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute('SHOW ALL SLAVES STATUS')
-            slaves = cursor.fetchall()
-            cursor.close()
-            conn.close()
-        except Exception:
-            LOG.error('Get slave status fail')
-            raise
+    def _slave_status(self, conn):
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('SHOW ALL SLAVES STATUS')
+        slaves = cursor.fetchall()
+        cursor.close()
         return slaves
 
-    def _master_status(self, user, passwd, sockfile):
+    def _master_status(self, conn):
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('SHOW MASTER STATUS')
+        masters = cursor.fetchall()
+        cursor.close()
+        return masters[0] if masters else None
+
+    def _schemas(self, conn):
+        cursor = conn.cursor()
+        cursor.execute('SHOW DATABASES')
+        schemas = cursor.fetchall()
+        cursor.close()
+        for schema in common.IGNORES['mysql']:
+            schemas.pop(schema, None)
+        return schemas
+
+    @contextlib.contextmanager
+    def _lower_conn(self, user, passwd, sockfile):
+        conn = mysql.connector.connect(unix_socket=sockfile,
+                                       user=user,
+                                       password=passwd,
+                                       raise_on_warnings=True)
         try:
-            conn = mysql.connector.connect(unix_socket=sockfile,
-                                           user=user,
-                                           password=passwd)
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute('SHOW MASTER STATUS')
-            masters = cursor.fetchall()
-            cursor.close()
-            conn.close()
-        except Exception:
-            LOG.error('Get master status fail')
+            yield conn
+        except Exception as e:
+            LOG.error('lower mysql connect error %s' % e.__class__.__name__)
+            if LOG.isEnabledFor(logging.DEBUG):
+                LOG.exception('mysql.connector exec error')
             raise
-        return masters
+        finally:
+            conn.close()
 
     def status(self, cfgfile, **kwargs):
         """status of database intance"""
@@ -378,108 +331,88 @@ class DatabaseManager(DatabaseManagerBase):
         """bond to master database intance"""
         conf = CONF[common.DB]
         master = kwargs.pop('master')
+        schemas = set(kwargs.pop('schemas'))
         force = kwargs.pop('force', False)
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
-        LOG.info('Try bond master for mysql %s' % sockfile)
-        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % (conf.localroot,
-                                                                                conf.localpass,
-                                                                                sockfile)
-        engine = engines.create_engine(sql_connection=conn,
-                                       poolclass=NullPool)
+
         auth = privilegeutils.mysql_slave_replprivileges(slave_id=dbinfo.get('database_id'), **master)
         master_name = 'masterdb-%(database_id)s' % auth
         sql = "CHANGE MASTER 'masterdb-%(database_id)s' TO MASTER_HOST='%(host)s', MASTER_PORT=%(port)d," \
               "MASTER_USER='%(user)s',MASTER_PASSWORD='%(passwd)s'," \
               "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(position)s" % auth
         LOG.info('Replication connect sql %s' % sql)
-        results = []
 
-        slaves = self._slave_status(user=conf.localroot,
-                                    passwd=conf.localpass,
-                                    sockfile=sockfile)
-        results.append(slaves)
+        with self._lower_conn(conf.localroot, conf.localpass, sockfile) as conn:
+            LOG.info('Login mysql from unix sock %s success, try bond master' % sockfile)
 
-        for slave_status in slaves:
-            if slave_status.get('Connection_name') == master_name:
-                if LOG.isEnabledFor(logging.DEBUG):
-                    for key in slave_status.keys():
-                        LOG.debug('BOND FIND OLD SLAVE %s STATUS ------ %s : %s'
-                                  % (master_name, key, slave_status[key]))
+            if schemas & set(self._schemas(conn)):
+                raise exceptions.AcceptableSchemaError('Schema with same name exist')
 
-        with engine.connect() as conn:
-            LOG.info('Login mysql from unix sock success, try bond master')
+            slaves = self._slave_status(conn)
+            for slave_status in slaves:
+                if slave_status.get('Connection_name') == master_name:
+                    if LOG.isEnabledFor(logging.DEBUG):
+                        for key in slave_status.keys():
+                            LOG.debug('BOND FIND OLD SLAVE %s STATUS ------ %s : %s'
+                                      % (master_name, key, slave_status[key]))
 
             r = conn.execute(sql)
-            if r.returns_rows:
-                results.append(r.fetchall())
             r.close()
-            LOG.info('Connect success, try start slave')
+
+            LOG.info('Connect to master success, try start slave')
+
             r = conn.execute("START SLAVE '%s'" % master_name)
-            if r.returns_rows:
-                results.append(r.fetchall())
             r.close()
+
+            LOG.info('START SLAVE %s success' % master_name)
+
         if postrun:
-            postrun(results)
+            postrun()
 
     def unbond(self, cfgfile, postrun, timeout,
                **kwargs):
         """bond to master database intance"""
         conf = CONF[common.DB]
         master = kwargs.pop('master')
+        schemas = master.get('schemas')
+        ready = master.get('ready')
         force = kwargs.pop('force', False)
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
-        LOG.info('Try unbond master for mysql %s' % sockfile)
-        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % (conf.localroot,
-                                                                                conf.localpass,
-                                                                                sockfile)
-        engine = engines.create_engine(sql_connection=conn,
-                                       poolclass=NullPool)
 
-        results = []
-
-        slaves = self._slave_status(user=conf.localroot,
-                                    passwd=conf.localpass,
-                                    sockfile=sockfile)
-        results.append(slaves)
         master_name = 'masterdb-%(database_id)s' % master
-        schemas = master.get('schemas')
-        ready = master.get('ready')
 
-        for slave_status in slaves:
-            if slave_status.get('Connection_name') == master_name:
-                if LOG.isEnabledFor(logging.DEBUG):
-                    for key in slave_status.keys():
-                        LOG.debug('UNBOND SLAVE %s STATUS ------ %s : %s'
-                                  % (master_name, key, slave_status[key]))
-                        # TODO
-                        #  Exec_Master_Log_Pos = 0
-                        #  Master_Log_File
-                        #  Slave_IO_Running  = No
-                        #  Slave_SQL_Running  = No
-                        #  Read_Master_Log_Pos  = 325
-                        #  Exec_Master_Log_Pos  = 325
-                running = False
-                if slave_status.get('Slave_IO_Running').lower() == 'yes' \
-                        or slave_status.get('Slave_SQL_Running').lower() == 'yes':
-                    running = True
+        with self._lower_conn(conf.localroot, conf.localpass, sockfile) as conn:
+            LOG.info('Login mysql from unix sock success, try stop unbond')
+            slaves = self._slave_status(conn)
+            for slave_status in slaves:
+                if slave_status.get('Connection_name') == master_name:
+                    if LOG.isEnabledFor(logging.DEBUG):
+                        for key in slave_status.keys():
+                            LOG.debug('UNBOND SLAVE %s STATUS ------ %s : %s'
+                                      % (master_name, key, slave_status[key]))
+                            # TODO
+                            #  Exec_Master_Log_Pos = 0
+                            #  Master_Log_File
+                            #  Slave_IO_Running  = No
+                            #  Slave_SQL_Running  = No
+                            #  Read_Master_Log_Pos  = 325
+                            #  Exec_Master_Log_Pos  = 325
+                    running = False
+                    if slave_status.get('Slave_IO_Running').lower() == 'yes' \
+                            or slave_status.get('Slave_SQL_Running').lower() == 'yes':
+                        running = True
 
-                with engine.connect() as conn:
-                    LOG.info('Login mysql from unix sock success, try stop unbond')
                     if running:
                         r = conn.execute("STOP SLAVE '%s'" % master_name)
-                        if r.returns_rows:
-                            results.append(r.fetchall())
                         r.close()
 
                     r = conn.execute("RESET SLAVE '%s'" % master_name)
-                    if r.returns_rows:
-                        results.append(r.fetchall())
                     r.close()
                 break
         if postrun:
-            postrun(results)
+            postrun()
 
     def revoke(self, cfgfile, postrun, timeout,
                **kwargs):
@@ -488,38 +421,62 @@ class DatabaseManager(DatabaseManagerBase):
         auth = kwargs.pop('auth')
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
-        LOG.info('Try revoke from mysql %s' % sockfile)
-        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % (conf.localroot,
-                                                                                conf.localpass,
-                                                                                sockfile)
-        engine = engines.create_engine(sql_connection=conn,
-                                       poolclass=NullPool)
 
         revoke = "REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % auth
         drop = "DROP USER '%(user)s'@'%(source)s'" % auth
-        results = []
 
-        with engine.connect() as conn:
-            LOG.info('Login mysql from unix sock success, try revoke')
+        with self._lower_conn(conf.localroot, conf.localpass, sockfile) as conn:
+            LOG.info('Login mysql from unix sock %s success, try revoke and drop user' % sockfile)
+
             # TODO change Exception Type
             try:
                 r = conn.execute(revoke)
-                if r.returns_rows:
-                    results.append(r.fetchall())
                 r.close()
             except Exception as e:
                 LOG.error(e.__class__.__name__)
 
             try:
                 r = conn.execute(drop)
-                if r.returns_rows:
-                    results.append(r.fetchall())
                 r.close()
             except Exception as e:
                 LOG.error(e.__class__.__name__)
 
         if postrun:
-            postrun(results)
+            postrun()
+
+    def bondslave(self, cfgfile, postrun, timeout, dbinfo,
+                  **kwargs):
+        """master bond salve"""
+        conf = CONF[common.DB]
+        replication = kwargs.pop('replication')
+        force = kwargs.pop('force', False)
+        schemas = kwargs.pop('schemas')
+        config = self.config_cls.load(cfgfile)
+        if not config.get('log-bin'):
+            raise exceptions.AcceptableDbError('Database lon-bin not open')
+        sockfile = config.get('socket')
+
+        sqls = []
+        sqls.append("grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'"
+                    % replication)
+        sqls.append("FLUSH PRIVILEGES")
+        sqls.append("RESET MASTER")
+
+        with self._lower_conn(conf.localroot, conf.localpass, sockfile) as conn:
+            LOG.info('Login mysql from unix sock %s success, try bond slave' % sockfile)
+            if set(schemas) != set(self._schemas(conn)):
+                raise exceptions.UnAcceptableDbError('Master schemas record not the same with schemas in entity')
+            if schemas:
+                if not force:
+                    raise exceptions.AcceptableSchemaError('Database got schemas, use force')
+                LOG.warning('Database add slave with schemas already exist')
+            for sql in sqls:
+                LOG.debug(sql)
+                r = conn.execute(sql)
+                r.close()
+            binlog = self._master_status(conn)
+        if postrun:
+            postrun(binlog, schemas)
 
     def install(self, cfgfile, postrun, timeout, **kwargs):
         """create database intance"""
@@ -553,9 +510,9 @@ class DatabaseManager(DatabaseManagerBase):
         eventlet.sleep(0)
         self.start(cfgfile)
         eventlet.sleep(3)
-        results = self._init_passwd(cfgfile, auth, replication)
+        binlog = self._init_passwd(cfgfile, auth, replication)
         if postrun:
-            postrun(results)
+            postrun(binlog)
 
     def dump(self, cfgfile, postrun, timeout,
              **kwargs):
@@ -575,10 +532,7 @@ class DatabaseManager(DatabaseManagerBase):
         conf = CONF[common.DB]
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
-        LOG.info('Try init password for mysql %s' % sockfile)
-        conn = 'mysql+mysqlconnector://%s:%s@localhost/mysql?unix_socket=%s' % ('root', '', sockfile)
-        engine = engines.create_engine(sql_connection=conn,
-                                       poolclass=NullPool)
+
         _auth = dict(user=auth.get('user'), passwd=auth.get('passwd'),
                      privileges=common.ALLPRIVILEGES, source=auth.get('source') or '%')
         sqls = ["drop database test",
@@ -597,17 +551,15 @@ class DatabaseManager(DatabaseManagerBase):
             'FLUSH PRIVILEGES',
             'RESET MASTER',
         ])
-        results = []
-        with engine.connect() as conn:
-            LOG.info('Login mysql from unix sock success, try init privileges')
+
+        with self._lower_conn('root', '', sockfile) as conn:
+            LOG.info('Login mysql from unix sock %s success, try init database' % sockfile)
+
             for sql in sqls:
                 LOG.debug(sql)
                 r = conn.execute(sql)
-                if r.returns_rows:
-                    results.append(r.fetchall())
                 r.close()
-                # if r.returns_rows:
-                #     r.fetchall()
-        LOG.info('Init privileges finishd')
-        results.append(self._master_status(conf.localroot, conf.localpass, sockfile))
-        return results
+            LOG.info('Init privileges finishd')
+            binlog = self._master_status(conn)
+
+        return binlog

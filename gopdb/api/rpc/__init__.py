@@ -156,6 +156,9 @@ class Application(AppEndpointBase):
         ports = self.manager.allocked_ports.get(common.DB)[entity]
         self.manager.free_ports(ports)
 
+    def _get_port(self, entity):
+        return self.entitys_map[entity][0]
+
     def _entity_process(self, entity):
         entityinfo = self.konwn_database.get(entity)
         if not entityinfo:
@@ -237,7 +240,7 @@ class Application(AppEndpointBase):
                 dbmanager.save_conf(cfgfile, **configs)
                 LOG.info('Prepare database config file success')
 
-                def _notify_success(results):
+                def _notify_success(binlog):
                     """notify database intance create success"""
                     dbinfo = self.konwn_database.get(entity)
                     if not dbinfo:
@@ -245,7 +248,6 @@ class Application(AppEndpointBase):
                         return
                     if bond:
                         LOG.debug('Try bond slave database')
-                        binlog = results[-1][0]
                         self.client.database_bond(database_id=bond.get('database_id'),
                                                   body={'master': dbinfo.get('database_id'),
                                                         'host': self.manager.local_ip,
@@ -253,11 +255,12 @@ class Application(AppEndpointBase):
                                                         'passwd': replication.get('passwd'),
                                                         'file': binlog.get('File'),
                                                         'position': binlog.get('Position'),
+                                                        'schemas': [],
                                                         })
-                    del results[:]
                     if self._entity_process(entity):
                         self.client.database_update(database_id=dbinfo.get('database_id'),
                                                     body={'status': common.OK})
+
                 kwargs.update({'logfile': install_log})
                 threadpool.add_thread(dbmanager.install, cfgfile, _notify_success, timeout,
                                       **kwargs)
@@ -401,7 +404,52 @@ class Application(AppEndpointBase):
                                           ctxt=ctxt,
                                           result=result)
 
+    def rpc_bond_slave(self, ctxt, entity, **kwargs):
+        """主库收到绑定从库命令"""
+        bond = kwargs.pop('bond')
+        dbtype = self._dbtype(entity)
+        dbinfo = self.konwn_database[entity]
+        port = self._get_port(entity)
+        replication = privilegeutils.mysql_replprivileges(bond.get('database_id'),
+                                                          bond.get('host'))
+        kwargs['replication'] = replication
+
+        if dbinfo.get('slave') != 0:
+            return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                              resultcode=manager_common.RESULT_ERROR,
+                                              ctxt=ctxt,
+                                              result='Can not bond slave, database is not master database?')
+        dbmanager = utils.impl_cls('rpc', dbtype)
+        cfgfile = self._db_conf(entity, dbtype)
+        with self.lock(entity, timeout=3):
+            p = self._entity_process(entity)
+            if not p:
+                return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                                  ctxt=ctxt,
+                                                  result='bond slave faile, process not exist')
+
+            def _bond_slave(_binlog, _scheams):
+                LOG.debug('Try bond slave database')
+                self.client.database_bond(database_id=bond.get('database_id'),
+                                          body={'master': dbinfo.get('database_id'),
+                                                'host': self.manager.local_ip,
+                                                'port': port,
+                                                'passwd': replication.get('passwd'),
+                                                'file': _binlog.get('File'),
+                                                'position': _binlog.get('Position'),
+                                                'schemas': _scheams,
+                                                })
+                if self._entity_process(entity):
+                    self.client.database_update(database_id=dbinfo.get('database_id'),
+                                                body={'status': common.OK})
+
+            dbmanager.bondslave(cfgfile, postrun=None, timeout=None, dbinfo=dbinfo, **kwargs)
+        return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                          ctxt=ctxt,
+                                          result='bond a slave success')
+
     def rpc_bond_entity(self, ctxt, entity, **kwargs):
+        """从库收到绑定主库命令"""
         dbtype = self._dbtype(entity)
         dbinfo = self.konwn_database[entity]
         if dbinfo.get('slave') == 0:
@@ -423,6 +471,7 @@ class Application(AppEndpointBase):
                                           result='bond to master success')
 
     def rpc_unbond_entity(self, ctxt, entity, **kwargs):
+        """从库收到解绑主库命令"""
         dbtype = self._dbtype(entity)
         dbinfo = self.konwn_database[entity]
         if dbinfo.get('slave') == 0:

@@ -1,5 +1,4 @@
 import contextlib
-
 from sqlalchemy.pool import NullPool
 
 from simpleutil.common.exceptions import InvalidArgument
@@ -13,7 +12,7 @@ from simpleservice.ormdb.tools import utils
 
 from gopdb import common
 from gopdb import privilegeutils
-from gopdb.api.wsgi import exceptions
+from gopdb.api import exceptions
 from gopdb.api.wsgi.impl import DatabaseManagerBase
 from gopdb.models import GopDatabase
 from gopdb.models import RecordDatabase

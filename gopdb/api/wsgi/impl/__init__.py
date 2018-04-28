@@ -1,26 +1,25 @@
 # -*- coding:utf-8 -*-
 import abc
+
 import six
 
-from sqlalchemy.orm import joinedload
-from sqlalchemy.sql import and_
-from sqlalchemy.sql import or_
-
-from simpleutil.utils import argutils
-from simpleutil.log import log as logging
-from simpleutil.common.exceptions import InvalidArgument
-from simpleservice.ormdb.api import model_count_with_key
-from simpleservice.ormdb.api import model_query
-
 from gopdb import common
-from gopdb import utils
 from gopdb import privilegeutils
-from gopdb.api import endpoint_session
+from gopdb import utils
+from gopdb.api import endpoint_session, exceptions
 from gopdb.api.wsgi import exceptions
 from gopdb.models import GopDatabase
 from gopdb.models import GopSalveRelation
 from gopdb.models import GopSchema
 from gopdb.models import SchemaQuote
+from simpleservice.ormdb.api import model_count_with_key
+from simpleservice.ormdb.api import model_query
+from simpleutil.common.exceptions import InvalidArgument
+from simpleutil.log import log as logging
+from simpleutil.utils import argutils
+from sqlalchemy.orm import joinedload
+from sqlalchemy.sql import and_
+from sqlalchemy.sql import or_
 
 LOG = logging.getLogger(__name__)
 
@@ -340,6 +339,7 @@ class DatabaseManagerBase(object):
         master_id = kwargs.pop('master')
         file = kwargs.get('file')
         position = kwargs.get('position')
+        schemas = kwargs.get('schemas')
         if not file or not position:
             raise InvalidArgument('Can not bond slave without file and position')
         master = None
@@ -363,6 +363,10 @@ class DatabaseManagerBase(object):
                 raise InvalidArgument('Master database with id %d can not be found' % master_id)
             if master.impl != slave.impl or master.dbtype != slave.dbtype:
                 raise InvalidArgument('Master and slave not the same type or impl')
+            _schemas = set([schema.schema for schema in master.schemas])
+            # 校验master中的schemas是否正确
+            if set(_schemas) != set(schemas):
+                raise ValueError('Master schemas info error')
             for _relation in master.slaves:
                 if _relation.slave_id == database_id:
                     # 找到绑定关系
