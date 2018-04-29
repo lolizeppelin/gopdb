@@ -91,7 +91,7 @@ class DatabaseReuest(BaseContorller):
             'file': {'type': 'string', 'minLength': 5, 'description': '主库binlog 文件名'},
             'position': {'type': 'integer', 'minimum': 1, 'description': '主库binlog 位置'},
             'force': {'type': 'boolean', 'description': '强制绑定, 忽略slave检查'},
-            'schemas': {'type': 'array', 'minItems': 1, 'description': '主数据库scheam列表',
+            'schemas': {'type': 'array', 'description': '主数据库scheam列表',
                         'items': {'type': 'string', 'minLength': 1, 'description': '主数据库scheam名'}},
         }
     }

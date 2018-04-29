@@ -264,8 +264,8 @@ class DatabaseManager(DatabaseManagerBase):
         return schemas
 
     @contextlib.contextmanager
-    def _lower_conn(self, user, passwd, sockfile, schema=None):
-        kwargs = dict(user=user, passwd=passwd, sockfile=sockfile, raise_on_warnings=True)
+    def _lower_conn(self, sockfile, user, passwd, schema=None):
+        kwargs = dict(user=user, passwd=passwd, unix_socket=sockfile, raise_on_warnings=True)
         if schema:
             kwargs['database'] = schema
         conn = mysql.connector.connect(**kwargs)
@@ -331,7 +331,7 @@ class DatabaseManager(DatabaseManagerBase):
         """bond to master database intance"""
         conf = CONF[common.DB]
         master = kwargs.pop('master')
-        schemas = set(kwargs.pop('schemas'))
+        schemas = set(master.pop('schemas'))
         force = kwargs.pop('force', False)
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
@@ -343,7 +343,7 @@ class DatabaseManager(DatabaseManagerBase):
               "MASTER_LOG_FILE='%(file)s',MASTER_LOG_POS=%(position)s" % auth
         LOG.info('Replication connect sql %s' % sql)
 
-        with self._lower_conn(conf.localroot, conf.localpass, sockfile) as conn:
+        with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
             LOG.info('Login mysql from unix sock %s success, try bond master' % sockfile)
 
             if schemas & set(self._schemas(conn)):
@@ -385,7 +385,7 @@ class DatabaseManager(DatabaseManagerBase):
 
         master_name = 'masterdb-%(database_id)s' % master
 
-        with self._lower_conn(conf.localroot, conf.localpass, sockfile) as conn:
+        with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
             LOG.info('Login mysql from unix sock success, try stop unbond')
             slaves = self._slave_status(conn)
             for slave_status in slaves:
@@ -429,7 +429,7 @@ class DatabaseManager(DatabaseManagerBase):
         revoke = "REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % auth
         drop = "DROP USER '%(user)s'@'%(source)s'" % auth
 
-        with self._lower_conn(conf.localroot, conf.localpass, sockfile) as conn:
+        with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
             LOG.info('Login mysql from unix sock %s success, try revoke and drop user' % sockfile)
 
             # TODO change Exception Type
@@ -468,7 +468,7 @@ class DatabaseManager(DatabaseManagerBase):
         sqls.append("FLUSH PRIVILEGES")
         sqls.append("RESET MASTER")
 
-        with self._lower_conn(conf.localroot, conf.localpass, sockfile) as conn:
+        with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
             LOG.info('Login mysql from unix sock %s success, try bond slave' % sockfile)
             if set(schemas) != set(self._schemas(conn)):
                 raise exceptions.UnAcceptableDbError('Master schemas record not the same with schemas in entity')
@@ -559,7 +559,8 @@ class DatabaseManager(DatabaseManagerBase):
             'RESET MASTER',
         ])
 
-        with self._lower_conn(user='root', passwd='', sockfile=sockfile, schema='mysql') as conn:
+        with self._lower_conn(sockfile=sockfile,
+                              user='root', passwd='', schema='mysql') as conn:
             LOG.info('Login mysql from unix sock %s success, try init database' % sockfile)
             for sql in sqls:
                 LOG.debug(sql)
