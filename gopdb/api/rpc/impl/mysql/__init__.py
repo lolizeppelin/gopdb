@@ -255,12 +255,14 @@ class DatabaseManager(DatabaseManagerBase):
         return masters[0] if masters else None
 
     def _schemas(self, conn):
+        schemas = []
         cursor = conn.cursor()
         cursor.execute('SHOW DATABASES')
-        schemas = cursor.fetchall()
+        for result in cursor.fetchall():
+            schema = result[0]
+            if schema not in common.IGNORES['mysql']:
+                schemas.append(schema)
         cursor.close()
-        for schema in common.IGNORES['mysql']:
-            schemas.pop(schema, None)
         return schemas
 
     @contextlib.contextmanager
