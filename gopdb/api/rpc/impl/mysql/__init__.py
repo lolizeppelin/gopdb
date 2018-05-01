@@ -551,10 +551,10 @@ class DatabaseManager(DatabaseManagerBase):
         if replication:
             sqls.append("grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'"
                         % replication)
-        sqls.extend([
-            'FLUSH PRIVILEGES',
-            'RESET MASTER',
-        ])
+
+        sqls.append('FLUSH PRIVILEGES')
+        if replication:
+            sqls.append('RESET MASTER')
 
         with self._lower_conn(sockfile=sockfile,
                               user='root', passwd='', schema='mysql') as conn:
@@ -565,6 +565,8 @@ class DatabaseManager(DatabaseManagerBase):
                 cursor.execute(sql)
                 cursor.close()
             LOG.info('Init privileges finishd')
-            binlog = self._master_status(conn)
+            binlog = None
+            if replication:
+                binlog = self._master_status(conn)
 
         return binlog
