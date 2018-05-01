@@ -388,7 +388,7 @@ class DatabaseManager(DatabaseManagerBase):
         master_name = 'masterdb-%(database_id)s' % master
 
         with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
-            LOG.info('Login mysql from unix sock success, try stop unbond')
+            LOG.info('Login mysql from unix sock success, try stop salve and unbond')
             slaves = self._slave_status(conn)
             for slave_status in slaves:
                 if slave_status.get('Connection_name') == master_name:
@@ -416,7 +416,7 @@ class DatabaseManager(DatabaseManagerBase):
                     cursor = conn.cursor()
                     cursor.execute("RESET SLAVE '%s'" % master_name)
                     cursor.close()
-                break
+                    break
         if postrun:
             postrun()
 
@@ -428,26 +428,21 @@ class DatabaseManager(DatabaseManagerBase):
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
 
-        revoke = "REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % auth
-        drop = "DROP USER '%(user)s'@'%(source)s'" % auth
+        sqls = []
+        sqls.append("REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % auth)
+        sqls.append("DROP USER '%(user)s'@'%(source)s'" % auth)
+        sqls.append("FLUSH PRIVILEGES")
 
         with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
             LOG.info('Login mysql from unix sock %s success, try revoke and drop user' % sockfile)
-
-            # TODO change Exception Type
-            try:
-                cursor = conn.cursor()
-                cursor.execute(revoke)
-                cursor.close()
-            except Exception as e:
-                LOG.error(e.__class__.__name__)
-
-            try:
-                cursor = conn.cursor()
-                cursor.execute(drop)
-                cursor.close()
-            except Exception as e:
-                LOG.error(e.__class__.__name__)
+            for sql in sqls:
+                # TODO change Exception Type
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute(sql)
+                    cursor.close()
+                except Exception as e:
+                    LOG.error(e.__class__.__name__)
 
         if postrun:
             postrun()
