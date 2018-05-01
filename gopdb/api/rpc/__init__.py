@@ -242,6 +242,7 @@ class Application(AppEndpointBase):
 
                 def _notify_success(binlog):
                     """notify database intance create success"""
+                    self.manager.change_performance()
                     dbinfo = self.konwn_database.get(entity)
                     if not dbinfo:
                         LOG.warning('Can not find entity database id, active fail')
@@ -355,6 +356,7 @@ class Application(AppEndpointBase):
         details.append(dict(detail_id=entity,
                             resultcode=resultcode,
                             result=result))
+        self.manager.change_performance()
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
                                           resultcode=resultcode,
