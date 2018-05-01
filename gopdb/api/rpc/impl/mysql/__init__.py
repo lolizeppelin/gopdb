@@ -266,8 +266,10 @@ class DatabaseManager(DatabaseManagerBase):
         return schemas
 
     @contextlib.contextmanager
-    def _lower_conn(self, sockfile, user, passwd, schema=None):
-        kwargs = dict(user=user, passwd=passwd, unix_socket=sockfile, raise_on_warnings=True)
+    def _lower_conn(self, sockfile, user, passwd, schema=None,
+                    raise_on_warnings=True):
+        kwargs = dict(user=user, passwd=passwd, unix_socket=sockfile,
+                      raise_on_warnings=raise_on_warnings)
         if schema:
             kwargs['database'] = schema
         conn = mysql.connector.connect(**kwargs)
@@ -387,7 +389,8 @@ class DatabaseManager(DatabaseManagerBase):
 
         master_name = 'masterdb-%(database_id)s' % master
 
-        with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
+        with self._lower_conn(sockfile, conf.localroot, conf.localpass,
+                              schema=None, raise_on_warnings=False) as conn:
             LOG.info('Login mysql from unix sock success, try stop salve and unbond')
             slaves = self._slave_status(conn)
             for slave_status in slaves:
@@ -414,7 +417,7 @@ class DatabaseManager(DatabaseManagerBase):
                         cursor.close()
 
                     cursor = conn.cursor()
-                    cursor.execute("RESET SLAVE '%s'" % master_name)
+                    cursor.execute("RESET SLAVE '%s' ALL" % master_name)
                     cursor.close()
                     break
         if postrun:
