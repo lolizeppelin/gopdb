@@ -80,7 +80,7 @@ class DatabaseReuest(BaseContorller):
                           'zone': {'type': 'string', 'description': '自动分配的安装区域,默认zone为all'},}
                       }
 
-    BONDSLAVE = {
+    BONDMASTER = {
         'type': 'object',
         'required': ['master', 'host', 'port', 'passwd'],
         'properties': {
@@ -96,7 +96,7 @@ class DatabaseReuest(BaseContorller):
         }
     }
 
-    UNBONDSLAVE = {
+    UNBONDMASTER = {
         'type': 'object',
         'required': ['master'],
         'properties': {
@@ -107,6 +107,15 @@ class DatabaseReuest(BaseContorller):
         }
     }
 
+    BONDSLAVE = {
+        'type': 'object',
+        'required': ['slave'],
+        'properties': {
+            'slave': {'type': 'integer', 'minimum': 1, 'description': '从库ID'},
+            'file': {'type': 'string', 'minLength': 5, 'description': '主库binlog 文件名,主库无内容时可不填写'},
+            'position': {'type': 'integer', 'minimum': 1, 'description': '主库binlog 位置,主库无内容时可不填写'},
+        }
+    }
 
     def reflect(self, req, impl, body=None):
         body = body or {}
@@ -262,8 +271,9 @@ class DatabaseReuest(BaseContorller):
         return resultutils.results(result='status database success', data=[dbresult, ])
 
     def bond(self, req, database_id, body=None):
+        """slave bond master"""
         body = body or {}
-        jsonutils.schema_validate(body, self.BONDSLAVE)
+        jsonutils.schema_validate(body, self.BONDMASTER)
         database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
@@ -272,14 +282,26 @@ class DatabaseReuest(BaseContorller):
         return resultutils.results(result='slave database success', data=[dbresult, ])
 
     def unbond(self, req, database_id, body=None):
+        """slave unbond master"""
         body = body or {}
-        jsonutils.schema_validate(body, self.UNBONDSLAVE)
+        jsonutils.schema_validate(body, self.UNBONDMASTER)
         database_id = int(database_id)
         kwargs = dict(req=req)
         kwargs.update(body)
         dbmanager = _impl(database_id)
         dbresult = dbmanager.unbond_database(database_id, **kwargs)
         return resultutils.results(result='unbond slave database success', data=[dbresult, ])
+
+    def slave(self, req, database_id, body=None):
+        """master slave(bond) a slave database"""
+        body = body or {}
+        jsonutils.schema_validate(body, self.BONDSLAVE)
+        database_id = int(database_id)
+        kwargs = dict(req=req)
+        kwargs.update(body)
+        dbmanager = _impl(database_id)
+        dbresult = dbmanager.slave_database(database_id, **kwargs)
+        return resultutils.results(result='master bond slave database success', data=[dbresult, ])
 
 @singleton.singleton
 class SchemaReuest(BaseContorller):

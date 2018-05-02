@@ -392,6 +392,41 @@ class DatabaseManager(DatabaseManagerBase):
             auth['schema'] = '*'
             return self._revoke_database_user(master, auth, req=req)
 
+    def _slave_database(self, session, master, slave, **kwargs):
+        req = kwargs.pop('req')
+        with session.begin(subtransactions=True):
+            # get slave host and port
+            _host, _port = self._get_entity(req=req,
+                                            entity=int(slave.reflection_id), raise_error=True)
+            entity = int(master.reflection_id)
+            _entity = entity_controller.show(req=req, entity=entity,
+                                             endpoint=common.DB, body={'ports': False})['data'][0]
+            agent_id = _entity['agent_id']
+            metadata = _entity['metadata']
+            if not metadata:
+                raise InvalidArgument('Traget database agent is offline')
+            target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                        metadata.get('host'))
+            target.namespace = common.DB
+            rpc = get_client()
+            finishtime, timeout = rpcfinishtime()
+            # 发送slave信息到主库所在agent
+            rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime + 3, 'agents': [agent_id, ]},
+                               msg={'method': 'slave_entity',
+                                    'args': dict(entity=entity,
+                                                 schemas=kwargs.get('schemas'),
+                                                 file=kwargs.get('file'),
+                                                 position=kwargs.get('position'),
+                                                 bond=dict(database_id=slave.database_id,
+                                                           host=_host, port=_port))
+                                    },
+                               timeout=timeout + 3)
+            if not rpc_ret:
+                raise RpcResultError('bond slave for master database result is None')
+            if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+                raise RpcResultError('bond slave for master database fail %s' % rpc_ret.get('result'))
+            return rpc_ret
+
     def _revoke_database_user(self, database, auth, **kwargs):
         req = kwargs.pop('req')
         entity = int(database.reflection_id)

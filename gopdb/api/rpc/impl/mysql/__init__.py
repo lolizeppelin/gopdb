@@ -265,6 +265,15 @@ class DatabaseManager(DatabaseManagerBase):
         cursor.close()
         return schemas
 
+    def _binlog_on(self, conn):
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SHOW GOLOBAL VARIABLES LIKE 'log_bin'")
+        varinfo = cursor.fetchall()[0]
+        cursor.close()
+        if varinfo.get('Value').lower() == 'on':
+            return True
+        return False
+
     @contextlib.contextmanager
     def _lower_conn(self, sockfile, user, passwd, schema=None,
                     raise_on_warnings=True):
@@ -408,12 +417,12 @@ class DatabaseManager(DatabaseManagerBase):
             cursor.close()
 
             LOG.info('Connect to master success, try start slave')
-
-            cursor = conn.cursor()
-            cursor.execute("START SLAVE '%s'" % master_name)
-            cursor.close()
-
-            LOG.info('START SLAVE %s success' % master_name)
+            # master have no schemas auto start slave
+            if not schemas:
+                cursor = conn.cursor()
+                cursor.execute("START SLAVE '%s'" % master_name)
+                cursor.close()
+                LOG.info('START SLAVE %s success' % master_name)
 
         if postrun:
             postrun()
@@ -492,7 +501,6 @@ class DatabaseManager(DatabaseManagerBase):
         """master bond salve"""
         conf = CONF[common.DB]
         replication = kwargs.pop('replication')
-        force = kwargs.pop('force', False)
         schemas = kwargs.pop('schemas')
         config = self.config_cls.load(cfgfile)
         if not config.get('log-bin'):
@@ -503,24 +511,48 @@ class DatabaseManager(DatabaseManagerBase):
         sqls.append("grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'"
                     % replication)
         sqls.append("FLUSH PRIVILEGES")
-        sqls.append("RESET MASTER")
-
+        if not schemas:
+            sqls.append("RESET MASTER")
         with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
             LOG.info('Login mysql from unix sock %s success, try bond slave' % sockfile)
+            if not self._binlog_on(conn):
+                raise exceptions.AcceptableDbError('Database binlog is off')
             if set(schemas) != set(self._schemas(conn)):
                 raise exceptions.UnAcceptableDbError('Master schemas record not the same with schemas in entity')
             if schemas:
-                if not force:
-                    raise exceptions.AcceptableSchemaError('Database got schemas, use force')
+                if not kwargs.get('file') or not kwargs.get('position'):
+                    raise exceptions.AcceptableSchemaError('Database got schemas, need file and position')
                 LOG.warning('Database add slave with schemas already exist')
             for sql in sqls:
                 LOG.debug(sql)
                 cursor = conn.cursor()
                 cursor.execute(sql)
                 cursor.close()
-            binlog = self._master_status(conn)
+            if schemas:
+                binlog = dict(File=kwargs.get('file'), Position=kwargs.get('position'))
+            else:
+                binlog = self._master_status(conn)
         if postrun:
-            postrun(binlog, schemas)
+            try:
+                postrun(binlog, schemas)
+            except Exception as e:
+                LOG.error('Bond slave fail with exception %s' % e.__class__.__name__)
+                sqls = []
+                sqls.append("REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % replication)
+                sqls.append("DROP USER '%(user)s'@'%(source)s'" % replication)
+                sqls.append("FLUSH PRIVILEGES")
+                try:
+                    with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
+                        for sql in sqls:
+                            LOG.debug(sql)
+                            cursor = conn.cursor()
+                            cursor.execute(sql)
+                            cursor.close()
+                # TODO change Exception type
+                except Exception:
+                    LOG.error('Drop user fail')
+                LOG.info('Bond fail, revoke user privilege success')
+                raise e
 
     def install(self, cfgfile, postrun, timeout, **kwargs):
         """create database intance"""

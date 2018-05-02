@@ -406,7 +406,7 @@ class Application(AppEndpointBase):
                                           ctxt=ctxt,
                                           result=result)
 
-    def rpc_bond_slave(self, ctxt, entity, **kwargs):
+    def rpc_slave_entity(self, ctxt, entity, **kwargs):
         """主库收到绑定从库命令"""
         bond = kwargs.pop('bond')
         dbtype = self._dbtype(entity)
@@ -420,7 +420,7 @@ class Application(AppEndpointBase):
             return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                               resultcode=manager_common.RESULT_ERROR,
                                               ctxt=ctxt,
-                                              result='Can not bond slave, database is not master database?')
+                                              result='Can not bond a slave, database is not master database?')
         dbmanager = utils.impl_cls('rpc', dbtype)
         cfgfile = self._db_conf(entity, dbtype)
         with self.lock(entity, timeout=3):
@@ -428,7 +428,7 @@ class Application(AppEndpointBase):
             if not p:
                 return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                                   ctxt=ctxt,
-                                                  result='bond slave faile, process not exist')
+                                                  result='Cat not bond a slave, master db process not exist')
 
             def _bond_slave(_binlog, _scheams):
                 LOG.debug('Try bond slave database')
@@ -441,24 +441,24 @@ class Application(AppEndpointBase):
                                                 'position': _binlog.get('Position'),
                                                 'schemas': _scheams,
                                                 })
-                if self._entity_process(entity):
-                    self.client.database_update(database_id=dbinfo.get('database_id'),
-                                                body={'status': common.OK})
 
-            dbmanager.bondslave(cfgfile, postrun=None, timeout=None, dbinfo=dbinfo, **kwargs)
+            dbmanager.bondslave(cfgfile, postrun=_bond_slave, timeout=None, dbinfo=dbinfo, **kwargs)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
-                                          result='bond a slave success')
+                                          result='bond slave for master success')
 
     def rpc_bond_entity(self, ctxt, entity, **kwargs):
-        """从库收到绑定主库命令"""
+        """
+        从库收到绑定主库命令
+        这个接口是内部接口,外部尽量不要调用
+        """
         dbtype = self._dbtype(entity)
         dbinfo = self.konwn_database[entity]
         if dbinfo.get('slave') == 0:
             return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                               resultcode=manager_common.RESULT_ERROR,
                                               ctxt=ctxt,
-                                              result='Can not bond, database is master database?')
+                                              result='Can not bond to master, database is master database?')
         dbmanager = utils.impl_cls('rpc', dbtype)
         cfgfile = self._db_conf(entity, dbtype)
         with self.lock(entity, timeout=3):
@@ -466,7 +466,7 @@ class Application(AppEndpointBase):
             if not p:
                 return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                                   ctxt=ctxt,
-                                                  result='bond entity faile, process not exist')
+                                                  result='bond to master fail, slave db process not exist')
             dbmanager.bond(cfgfile, postrun=None, timeout=None, dbinfo=dbinfo, **kwargs)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
@@ -480,7 +480,7 @@ class Application(AppEndpointBase):
             return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                               resultcode=manager_common.RESULT_ERROR,
                                               ctxt=ctxt,
-                                              result='Can not unbond, database is master database?')
+                                              result='Can not unbond from master, database is master database?')
         dbmanager = utils.impl_cls('rpc', dbtype)
         cfgfile = self._db_conf(entity, dbtype)
         with self.lock(entity, timeout=3):
@@ -488,11 +488,11 @@ class Application(AppEndpointBase):
             if not p:
                 return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                                   ctxt=ctxt,
-                                                  result='unbond entity faile, process not exist')
+                                                  result='unbond to master faile, slave db process not exist')
             dbmanager.unbond(cfgfile, postrun=None, timeout=None, **kwargs)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
-                                          result='unbond to master success')
+                                          result='unbond from master success')
 
     def rpc_revoke_entity(self, ctxt, entity, **kwargs):
         dbtype = self._dbtype(entity)

@@ -428,6 +428,56 @@ class DatabaseManagerBase(object):
     def _unbond_database(self, session, master, slave, relation, **kwargs):
         """impl unbond slave database"""
 
+    def slave_database(self, database_id, **kwargs):
+        slave_id = kwargs.pop('slave')
+        file = kwargs.get('file')
+        position = kwargs.get('position')
+        master = None
+        slave = None
+        session = endpoint_session()
+        query = model_query(session, GopDatabase, filter=GopDatabase.database_id.in_([database_id, slave_id]))
+        query = query.options(joinedload(GopDatabase.slaves, innerjoin=False))
+        with session.begin(subtransactions=True):
+            for database in query:
+                if database.database_id == database_id:
+                    master = database
+                elif database.database_id == slave_id:
+                    slave = database
+            # 校验主从
+            if slave is None or slave.slave <= 0:
+                raise InvalidArgument('slave database with id %d can not be found' % slave_id)
+            if slave.status != common.OK:
+                raise InvalidArgument('Slave database is not active')
+            if master is None or master.slave > 0:
+                raise InvalidArgument('Master database with id %d can not be found' % database_id)
+            if master.impl != slave.impl or master.dbtype != slave.dbtype:
+                raise InvalidArgument('Master and slave not the same type or impl')
+            schemas = [schema.schema for schema in master.schemas]
+            # master中有schemas
+            ready = True
+            if schemas:
+                if not file or not position:
+                    raise InvalidArgument('Can not bond slave without file and position')
+                ready = False
+            for _relation in master.slaves:
+                # 找到绑定关系
+                if _relation.slave_id == slave_id:
+                    raise InvalidArgument('Slave already in master slave list')
+            # 没有绑定关系, 确认从库上限
+            count = model_count_with_key(session, GopSalveRelation,
+                                         filter=GopSalveRelation.slave_id == slave_id)
+            if count >= slave.slave:
+                raise InvalidArgument('Target slave database is full')
+            relation = GopSalveRelation(master_id=master.database_id, slave_id=slave.database_id, ready=ready)
+            session.add(relation)
+            session.flush()
+            kwargs['schemas'] = schemas
+            return self._slave_database(session, master, slave, **kwargs)
+
+    @abc.abstractmethod
+    def _slave_database(self, session, master, slave, **kwargs):
+        """impl unbond slave database"""
+
     @abc.abstractmethod
     def _revoke_database_user(self, database, auth, **kwargs):
         """impl unbond slave database"""
