@@ -352,14 +352,56 @@ class DatabaseManager(DatabaseManagerBase):
 
             if schemas & set(self._schemas(conn)):
                 raise exceptions.AcceptableSchemaError('Schema with same name exist')
-
+            LOG.info('Slave channel name %s' % master_name)
             slaves = self._slave_status(conn)
             for slave_status in slaves:
-                if slave_status.get('Connection_name') == master_name:
+                channel = slave_status.get('Connection_name')
+                host = slave_status.get('Master_Host')
+                port = slave_status.get('Master_Port')
+                iothread = slave_status.get('Slave_IO_Running').lower()
+                epos = slave_status.get('Exec_Master_Log_Pos')
+                rpos = slave_status.get('Read_Master_Log_Pos')
+                bsecond = slave_status.get('Seconds_Behind_Master')
+                if channel != master_name and (host == auth.get('host') and port == auth.get('port')):
+                    LOG.info('Bond slave find same host and port with different channel name %s' % channel)
+                    if iothread == 'yes':
+                        raise exceptions.AcceptableDbError('Slave with channel name %s '
+                                                           'is running in same host:port' % channel)
+                    if epos != 0 or rpos != 0 or bsecond != 0:
+                        if not force:
+                            raise exceptions.AcceptableDbError('Channel %s pos not zero, need force' %
+                                                               channel)
+                    LOG.warning('Reset slave channel %s' % channel)
                     if LOG.isEnabledFor(logging.DEBUG):
                         for key in slave_status.keys():
                             LOG.debug('BOND FIND OLD SLAVE %s STATUS ------ %s : %s'
-                                      % (master_name, key, slave_status[key]))
+                                      % (channel, key, slave_status[key]))
+                    cursor = conn.cursor()
+                    cursor.execute("RESET SLAVE '%s' ALL" % channel)
+                    cursor.close()
+                    break
+                elif channel == master_name:
+                    LOG.info('Bond slave find same channel')
+                    if host != auth.get('host') or port != auth.get('port'):
+                        if iothread == 'yes':
+                            raise exceptions.AcceptableDbError('Channel %s is running but '
+                                                               'connection is not the same' % channel)
+                    if epos != 0 or rpos != 0 or bsecond != 0:
+                        if not force:
+                            raise exceptions.AcceptableDbError('Channel %s pos not zero, need force' %
+                                                               channel)
+                    if LOG.isEnabledFor(logging.DEBUG):
+                        for key in slave_status.keys():
+                            LOG.debug('BOND FIND OLD SLAVE %s STATUS ------ %s : %s'
+                                      % (channel, key, slave_status[key]))
+                    if iothread == 'yes':
+                        cursor = conn.cursor()
+                        cursor.execute("STOP SLAVE '%s'" % channel)
+                        cursor.close()
+                    cursor = conn.cursor()
+                    cursor.execute("RESET SLAVE '%s' ALL" % channel)
+                    cursor.close()
+                    break
 
             cursor = conn.cursor()
             cursor.execute(sql)
@@ -392,6 +434,9 @@ class DatabaseManager(DatabaseManagerBase):
         with self._lower_conn(sockfile, conf.localroot, conf.localpass,
                               schema=None, raise_on_warnings=False) as conn:
             LOG.info('Login mysql from unix sock success, try stop salve and unbond')
+            # check schemas
+            if (set(schemas) - set(self._schemas(conn))) and not force:
+                raise exceptions.AcceptableDbError('Slave schemas not same as master %(database_id)s' % master)
             slaves = self._slave_status(conn)
             for slave_status in slaves:
                 if slave_status.get('Connection_name') == master_name:
@@ -399,19 +444,15 @@ class DatabaseManager(DatabaseManagerBase):
                         for key in slave_status.keys():
                             LOG.debug('UNBOND SLAVE %s STATUS ------ %s : %s'
                                       % (master_name, key, slave_status[key]))
-                            # TODO
-                            #  Exec_Master_Log_Pos = 0
-                            #  Master_Log_File
-                            #  Slave_IO_Running  = No
-                            #  Slave_SQL_Running  = No
-                            #  Read_Master_Log_Pos  = 325
-                            #  Exec_Master_Log_Pos  = 325
                     running = False
                     if slave_status.get('Slave_IO_Running').lower() == 'yes' \
                             or slave_status.get('Slave_SQL_Running').lower() == 'yes':
                         running = True
 
                     if running:
+                        if ready and not force:
+                            raise exceptions.AcceptableDbError('Slave thread is running')
+
                         cursor = conn.cursor()
                         cursor.execute("STOP SLAVE '%s'" % master_name)
                         cursor.close()
