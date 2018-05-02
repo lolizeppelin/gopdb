@@ -185,7 +185,8 @@ class DatabaseReuest(BaseContorller):
             slaves = column.get('slaves', [])
             column['slaves'] = []
             for slave in slaves:
-                column['slaves'].append(dict(database_id=slave.package_id, readonly=slave.slave))
+                column['slaves'].append(dict(database_id=slave.database_id,
+                                             readonly=slave.readonly, ready=slave.ready))
         return results
 
     def create(self, req, body=None):
