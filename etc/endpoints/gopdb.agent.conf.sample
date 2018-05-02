@@ -13,13 +13,13 @@
 # Endpoint max lock size (integer value)
 #max_lock = 100
 
-# local database login admin name (string value)
+# New database intance admin name login from unix socket (string value)
 #localroot = root
 
-# local database admin password (string value)
+# New database intance admin password login from unix socket (string value)
 #localpass = gopdb
 
-# local database admin password, 1 master, 2 slave,  3 both ok (integer value)
+# local database admin password, 1 master, 2 slave, 3 both (integer value)
 # Minimum value: 1
 # Maximum value: 3
 #affinity = 1

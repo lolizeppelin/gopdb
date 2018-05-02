@@ -6,14 +6,14 @@ CONF = cfg.CONF
 db_opts = [
     cfg.StrOpt('localroot',
                default='root',
-               help='local database login admin name'),
+               help='New database intance admin name login from unix socket'),
     cfg.StrOpt('localpass',
                default='gopdb',
-               help='local database admin password'),
+               help='New database intance admin password login from unix socket'),
     cfg.IntOpt('affinity',
                default=1,
                min=1, max=3,
-               help='local database admin password, 1 master, 2 slave,  3 both ok')
+               help='local database admin password, 1 master, 2 slave, 3 both')
 ]
 
 
