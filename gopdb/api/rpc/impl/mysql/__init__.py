@@ -332,7 +332,7 @@ class DatabaseManager(DatabaseManagerBase):
 
     def bond(self, cfgfile, postrun, timeout, dbinfo,
              **kwargs):
-        """bond to master database intance"""
+        """slave bond to master database"""
         conf = CONF[common.DB]
         master = kwargs.pop('master')
         schemas = set(master.pop('schemas'))
@@ -420,7 +420,7 @@ class DatabaseManager(DatabaseManagerBase):
 
     def unbond(self, cfgfile, postrun, timeout,
                **kwargs):
-        """bond to master database intance"""
+        """slave unbond master database"""
         conf = CONF[common.DB]
         master = kwargs.pop('master')
         schemas = master.get('schemas')
@@ -477,17 +477,13 @@ class DatabaseManager(DatabaseManagerBase):
         sqls.append("DROP USER '%(user)s'@'%(source)s'" % auth)
         sqls.append("FLUSH PRIVILEGES")
 
-        with self._lower_conn(sockfile, conf.localroot, conf.localpass) as conn:
+        with self._lower_conn(sockfile, conf.localroot, conf.localpass,
+                              schema=None, raise_on_warnings=False) as conn:
             LOG.info('Login mysql from unix sock %s success, try revoke and drop user' % sockfile)
             for sql in sqls:
-                # TODO change Exception Type
-                try:
-                    cursor = conn.cursor()
-                    cursor.execute(sql)
-                    cursor.close()
-                except Exception as e:
-                    LOG.error(e.__class__.__name__)
-
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                cursor.close()
         if postrun:
             postrun()
 
