@@ -427,6 +427,7 @@ class Application(AppEndpointBase):
             p = self._entity_process(entity)
             if not p:
                 return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                                  resultcode=manager_common.RESULT_ERROR,
                                                   ctxt=ctxt,
                                                   result='Cat not bond a slave, master db process not exist')
 
