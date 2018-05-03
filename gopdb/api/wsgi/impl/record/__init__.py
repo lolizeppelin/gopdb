@@ -98,35 +98,6 @@ class DatabaseManager(DatabaseManagerBase):
         query.delete()
         yield _record.host, _record.port
 
-    @contextlib.contextmanager
-    def _delete_slave_database(self, session, slave, masters, **kwargs):
-        record_ids = [int(master.database_id) for master in masters]
-        record_ids.append(slave.database_id)
-        records = model_query(session, RecordDatabase, filter=RecordDatabase.record_id.in_(record_ids)).all()
-        if len(records) != len(record_ids):
-            raise exceptions.UnAcceptableDbError('Database record can not be found')
-        host, port = None
-        _masters = []
-        with records:
-            record = records.pop()
-            if record.record_id == int(slave.database_id):
-                host = record.host
-                port = record.port
-            else:
-                for master in masters:
-                    if record.record_id == int(master.database_id):
-                        _masters.append((master, record.host, record.port))
-                    break
-        try:
-            yield host, port
-        except Exception:
-            raise
-        else:
-            for m in _masters:
-                privilegeutils.mysql_drop_replprivileges(m[0], slave, m[1], m[2])
-        finally:
-            del _masters[:]
-
     def _start_database(self, database, **kwargs):
         """impl start a database code"""
         raise NotImplementedError

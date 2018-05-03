@@ -285,9 +285,9 @@ class DatabaseManagerBase(object):
                                                                             GopDatabase.slave == 0))
                     if len(_masters) != len(masters):
                         raise exceptions.UnAcceptableDbError('Target slave database master missed')
-                else:
-                    masters = []
-                with self._delete_slave_database(session, _database, masters, **kwargs) as address:
+                    raise exceptions.AcceptableDbError('Slave is bond to masters, unbond before delete')
+
+                with self._delete_database(session, _database, **kwargs) as address:
                     query.delete()
                     host = address[0]
                     port = address[1]
@@ -298,10 +298,6 @@ class DatabaseManagerBase(object):
     @abc.abstractmethod
     def _delete_database(self, session, database):
         """impl delete database code"""
-
-    @abc.abstractmethod
-    def _delete_slave_database(self, session, slave, masters, **kwargs):
-        """impl delete a slave database code"""
 
     def start_database(self, database_id, **kwargs):
         session = endpoint_session(readonly=True)

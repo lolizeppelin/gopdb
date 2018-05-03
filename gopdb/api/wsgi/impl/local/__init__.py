@@ -233,22 +233,6 @@ class DatabaseManager(DatabaseManagerBase):
                                  body=dict(token=token))
         yield local_ip, port
 
-    @contextlib.contextmanager
-    def _delete_slave_database(self, session, slave, masters, **kwargs):
-        req = kwargs.pop('req')
-        token = uuidutils.generate_uuid()
-        local_ip, port = self._get_entity(req, int(slave.reflection_id), raise_error=True)
-        entity_controller.delete(req=req, endpoint=common.DB, entity=int(slave.reflection_id),
-                                 body=dict(token=token))
-        try:
-            yield local_ip, port
-        except Exception:
-            raise
-        else:
-            for master in masters:
-                master_ip, master_port = self._get_entity(req, int(master.reflection_id))
-                privilegeutils.mysql_drop_replprivileges(master, slave, master_ip, master_port)
-
     def _start_database(self, database, **kwargs):
         req = kwargs.pop('req')
         entity = int(database.reflection_id)
