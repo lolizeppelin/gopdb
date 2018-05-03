@@ -411,7 +411,7 @@ class DatabaseManager(DatabaseManagerBase):
             rpc = get_client()
             finishtime, timeout = rpcfinishtime()
             # 发送slave信息到主库所在agent
-            rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime + 3, 'agents': [agent_id, ]},
+            rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime + 5, 'agents': [agent_id, ]},
                                msg={'method': 'slave_entity',
                                     'args': dict(entity=entity,
                                                  schemas=kwargs.get('schemas'),
@@ -420,7 +420,7 @@ class DatabaseManager(DatabaseManagerBase):
                                                  bond=dict(database_id=slave.database_id,
                                                            host=_host, port=_port))
                                     },
-                               timeout=timeout + 3)
+                               timeout=timeout + 5)
             if not rpc_ret:
                 raise RpcResultError('bond slave for master database result is None')
             if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:

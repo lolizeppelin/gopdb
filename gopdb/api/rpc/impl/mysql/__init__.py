@@ -320,10 +320,12 @@ class DatabaseManager(DatabaseManagerBase):
                 os._exit(0)
         else:
             wait(pid)
+            eventlet.sleep(1)
 
     def stop(self, cfgfile, postrun=None, timeout=None, **kwargs):
         """stop database intance"""
         process = kwargs.pop('process', None)
+        timeout = timeout or 3
         config = self.config_cls.load(cfgfile)
         pidifle = config.get('pid-file')
         datadir = config.get('datadir')
@@ -340,6 +342,13 @@ class DatabaseManager(DatabaseManagerBase):
             process.terminate()
         else:
             raise ValueError('Process user or cmdline not match')
+        while timeout > 0:
+            eventlet.sleep(1)
+            timeout -= 1
+            if not process.is_running():
+                LOG.debug('Stop mysql process success')
+                return
+        raise exceptions.GopdbError('Process is running after stop')
 
     def bond(self, cfgfile, postrun, timeout, dbinfo,
              **kwargs):
@@ -520,7 +529,7 @@ class DatabaseManager(DatabaseManagerBase):
                     raise exceptions.UnAcceptableDbError('Bin log has been opened but now closed')
             cf.save(cfgfile)
             LOG.info('log bin opened in config file, try restart mysql')
-            self.stop(cfgfile)
+            self.stop(cfgfile, timeout=3)
             self.start(cfgfile)
 
         sqls = []
