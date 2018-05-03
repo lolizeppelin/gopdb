@@ -486,11 +486,13 @@ class DatabaseManager(DatabaseManagerBase):
 
     def revoke(self, cfgfile, postrun, timeout,
                **kwargs):
-        """bond to master database intance"""
+        """revoke from master database intance"""
         conf = CONF[common.DB]
         auth = kwargs.pop('auth')
         config = self.config_cls.load(cfgfile)
         sockfile = config.get('socket')
+        if not auth.get('schema'):
+            auth['schema'] = '*'
 
         sqls = []
         sqls.append("REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % auth)
@@ -531,6 +533,8 @@ class DatabaseManager(DatabaseManagerBase):
             LOG.info('log bin opened in config file, try restart mysql')
             self.stop(cfgfile, timeout=3)
             self.start(cfgfile)
+            if not os.path.exists(sockfile):
+                eventlet.sleep(1)
 
         sqls = []
         sqls.append("grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'"
@@ -563,6 +567,8 @@ class DatabaseManager(DatabaseManagerBase):
             except Exception as e:
                 LOG.error('Bond slave fail with exception %s' % e.__class__.__name__)
                 sqls = []
+                if not replication.get('schema'):
+                    replication['schema'] = '*'
                 sqls.append("REVOKE %(privileges)s ON %(schema)s.* FROM '%(user)s'@'%(source)s'" % replication)
                 sqls.append("DROP USER '%(user)s'@'%(source)s'" % replication)
                 sqls.append("FLUSH PRIVILEGES")
