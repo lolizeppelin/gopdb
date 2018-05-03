@@ -131,7 +131,8 @@ class GopDBClient(GopHttpClientApi):
         return results
 
     def database_bond(self, database_id, body=None):
-        resp, results = self.post(action=self.database_path_ex % (str(database_id), 'bond'), body=body)
+        resp, results = self.post(action=self.database_path_ex % (str(database_id), 'bond'),
+                                  body=body, timeout=30)
         if results['resultcode'] != common.RESULT_SUCCESS:
             raise ServerExecuteRequestError(message='bond database %s status fail:%d' %
                                                     (str(database_id), results['resultcode']),
