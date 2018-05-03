@@ -502,10 +502,28 @@ class DatabaseManager(DatabaseManagerBase):
         conf = CONF[common.DB]
         replication = kwargs.pop('replication')
         schemas = kwargs.pop('schemas')
-        config = self.config_cls.load(cfgfile)
-        if not config.get('log-bin'):
-            raise exceptions.AcceptableDbError('Database lon-bin not open')
-        sockfile = config.get('socket')
+        cf = self.config_cls.load(cfgfile)
+        sockfile = cf.get('socket')
+        if not cf.get('log-bin'):
+            if schemas:
+                raise exceptions.AcceptableDbError('Databaes bin log is off in config file')
+            LOG.warning('Database log-bin not open, try open it')
+            cf.binlog()
+            with self._lower_conn(sockfile, conf.localroot, conf.localpass,
+                                  schema=None, raise_on_warnings=False) as conn:
+                if self._binlog_on(conn):
+                    LOG.error('Config file %s value error on log bin' % cfgfile)
+                    raise exceptions.UnAcceptableDbError('Log bin is on in mysql process but off in config')
+                if self._master_status(conn):
+                    raise exceptions.UnAcceptableDbError('Bin log has been opened but now closed')
+                cursor = conn.cursor()
+                cursor.execute("SET GLOBAL expire_logs_days=3")
+                cursor.close()
+
+                cursor = conn.cursor()
+                cursor.execute("SET GLOBAL SQL_LOG_BIN=1")
+                cursor.close()
+            cf.save(cfgfile)
 
         sqls = []
         sqls.append("grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'"

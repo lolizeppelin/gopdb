@@ -185,7 +185,8 @@ class DatabaseReuest(BaseContorller):
             slaves = column.get('slaves', [])
             column['slaves'] = []
             for slave in slaves:
-                column['slaves'].append(dict(database_id=slave.database_id,
+                column['slaves'].append(dict(slave_id=slave.slave_id,
+                                             master_id=column.get('database_id'),
                                              readonly=slave.readonly, ready=slave.ready))
         return results
 
