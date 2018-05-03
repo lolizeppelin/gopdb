@@ -561,6 +561,7 @@ class DatabaseManager(DatabaseManagerBase):
                 binlog = dict(File=kwargs.get('file'), Position=kwargs.get('position'))
             else:
                 binlog = self._master_status(conn)
+        LOG.info('Grant privileges for replication user success')
         if postrun:
             try:
                 postrun(binlog, schemas)

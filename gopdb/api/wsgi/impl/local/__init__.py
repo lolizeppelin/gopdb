@@ -411,7 +411,8 @@ class DatabaseManager(DatabaseManagerBase):
             rpc = get_client()
             finishtime, timeout = rpcfinishtime()
             # 发送slave信息到主库所在agent
-            rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime + 5, 'agents': [agent_id, ]},
+            rpc_ret = rpc.call(target,
+                               ctxt={'finishtime': finishtime + 5, 'agents': [agent_id, ]},
                                msg={'method': 'slave_entity',
                                     'args': dict(entity=entity,
                                                  schemas=kwargs.get('schemas'),

@@ -454,11 +454,9 @@ class DatabaseManagerBase(object):
                 raise InvalidArgument('Master and slave not the same type or impl')
             schemas = [schema.schema for schema in master.schemas]
             # master中有schemas
-            ready = True
             if schemas:
                 if not file or not position:
                     raise InvalidArgument('Can not bond slave without file and position')
-                ready = False
             for _relation in master.slaves:
                 # 找到绑定关系
                 if _relation.slave_id == slave_id:
@@ -468,9 +466,6 @@ class DatabaseManagerBase(object):
                                          filter=GopSalveRelation.slave_id == slave_id)
             if count >= slave.slave:
                 raise InvalidArgument('Target slave database is full')
-            relation = GopSalveRelation(master_id=master.database_id, slave_id=slave.database_id, ready=ready)
-            session.add(relation)
-            session.flush()
             kwargs['schemas'] = schemas
             return self._slave_database(session, master, slave, **kwargs)
 
