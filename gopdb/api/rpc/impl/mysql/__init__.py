@@ -161,7 +161,10 @@ class MysqlConfig(DatabaseConfigBase):
         self.config = config
 
     def get(self, key):
-        return self.config.get('mysqld', key)
+        try:
+            return self.config.get('mysqld', key)
+        except ConfigParser.NoOptionError:
+            return None
 
     @classmethod
     def load(cls, cfgfile):
@@ -267,7 +270,7 @@ class DatabaseManager(DatabaseManagerBase):
 
     def _binlog_on(self, conn):
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SHOW GOLOBAL VARIABLES LIKE 'log_bin'")
+        cursor.execute("SHOW GLOBAL VARIABLES LIKE 'log_bin'")
         varinfo = cursor.fetchall()[0]
         cursor.close()
         if varinfo.get('Value').lower() == 'on':
@@ -318,8 +321,7 @@ class DatabaseManager(DatabaseManagerBase):
         else:
             wait(pid)
 
-    def stop(self, cfgfile, postrun, timeout,
-             **kwargs):
+    def stop(self, cfgfile, postrun=None, timeout=None, **kwargs):
         """stop database intance"""
         process = kwargs.pop('process', None)
         config = self.config_cls.load(cfgfile)
@@ -516,14 +518,10 @@ class DatabaseManager(DatabaseManagerBase):
                     raise exceptions.UnAcceptableDbError('Log bin is on in mysql process but off in config')
                 if self._master_status(conn):
                     raise exceptions.UnAcceptableDbError('Bin log has been opened but now closed')
-                cursor = conn.cursor()
-                cursor.execute("SET GLOBAL expire_logs_days=3")
-                cursor.close()
-
-                cursor = conn.cursor()
-                cursor.execute("SET GLOBAL SQL_LOG_BIN=1")
-                cursor.close()
             cf.save(cfgfile)
+            LOG.info('log bin opened in config file, try restart mysql')
+            self.stop(cfgfile)
+            self.start(cfgfile)
 
         sqls = []
         sqls.append("grant %(privileges)s on *.* to '%(user)s'@'%(source)s' IDENTIFIED by '%(passwd)s'"

@@ -157,7 +157,7 @@ class Application(AppEndpointBase):
         self.manager.free_ports(ports)
 
     def _get_port(self, entity):
-        return self.entitys_map[entity][0]
+        return list(self.entitys_map[entity])[0]
 
     def _entity_process(self, entity):
         entityinfo = self.konwn_database.get(entity)
