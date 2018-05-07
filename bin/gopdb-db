@@ -76,6 +76,12 @@ one_opts = [
                help='Target Database id'),
 ]
 
+dump_opt = cfg.StrOpt(
+    'sockfile',
+    short='s',
+    required=True
+)
+
 
 def prepare_results(r):
     if r is None:
@@ -314,14 +320,33 @@ def stop():
     print('\033[0m')
 
 
+def dump():
+    dbgroup = cfg.OptGroup(name='gopdb', title='gopdb group')
+    CONF.register_group(dbgroup)
+
+    from gopdb.api.rpc.impl.config import db_opts
+    CONF.register_opts(db_opts)
+
+    CONF.register_cli_opt(dump_opt)
+
+    CONF(project='cmd',
+         default_config_files=['/etc/goperation/endpoints/gopdb.agent.conf'])
+
+    socketfile = CONF.sockfile
+    user = CONF.gopdb.localroot
+    passwd = CONF.gopdb.localpass
+
+    print user, passwd
+
+
 
 def main():
     try:
         func = sys.argv.pop(1)
-        if func not in ('list', 'show', 'create', 'delete', 'active', 'start', 'stop', 'status'):
+        if func not in ('list', 'show', 'create', 'delete', 'active', 'start', 'stop', 'status', 'dump'):
             raise ValueError
     except (IndexError, ValueError):
-        print 'action is:  list  create  active  delete  status  start  stop'
+        print 'action is:  list  create  active  delete  status  start  stop dump'
         print 'use -h for help'
         sys.exit(1)
     func = eval(func)
