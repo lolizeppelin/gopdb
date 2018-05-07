@@ -203,7 +203,7 @@ class MysqlConfig(DatabaseConfigBase):
         # ste logbin
         if binlog:
             conf = CONF[common.DB]
-            config.set('mysqld', 'log-bin', 'binlog')
+            config.set('mysqld', 'log-bin', 'ON')
             config.set('mysqld', 'expire_logs_days', conf.expire_log_days)
             config.set('mysqld', 'max_binlog_size', 270532608)
         if relaylog:
