@@ -76,11 +76,17 @@ one_opts = [
                help='Target Database id'),
 ]
 
-dump_opt = cfg.StrOpt(
-    'sockfile',
-    short='s',
-    required=True
-)
+dump_opts = [
+    cfg.StrOpt(
+        'sockfile',
+        short='s',
+        required=True),
+    cfg.StrOpt(
+        'admin',
+        default='root',
+        help='Remote admin user name'
+    )
+]
 
 
 def prepare_results(r):
@@ -327,18 +333,40 @@ def dump():
     from gopdb.api.rpc.impl.config import db_opts
     CONF.register_opts(db_opts)
 
-    CONF.register_cli_opt(dump_opt)
+    CONF.register_cli_opts(dump_opts)
 
     CONF(project='cmd',
          default_config_files=['/etc/goperation/endpoints/gopdb.agent.conf'])
 
-    socketfile = CONF.sockfile
-    user = CONF.gopdb.localroot
-    passwd = CONF.gopdb.localpass
+    import mysql.connector
+    conn = mysql.connector.connect(user=CONF.gopdb.localroot,
+                                   passwd=CONF.gopdb.localpass,
+                                   unix_socket=CONF.sockfile,
+                                   raise_on_warnings=True)
+    schemas = []
+    cursor = conn.cursor()
+    cursor.execute('SHOW DATABASES')
+    for result in cursor.fetchall():
+        schema = result[0]
+        if schema not in common.IGNORES['mysql']:
+            schemas.append(schema)
+    cursor.close()
+    conn.close()
 
-    print user, passwd
-
-
+    dump_string = "mysqldump -u%s -p%s -S %s -t --skip-extended-insert --skip-add-drop-table " \
+                  "--skip-add-locks --skip-comments --skip-disable-keys --default-character-set='utf8'" \
+                  "--databases mysql --tables user db --where=\"user !='%s'\"" % \
+                  (CONF.gopdb.localroot, CONF.gopdb.localpass, CONF.sockfile, CONF.admin)
+    print '\033[1;32;40m----------------------user dump--------------------\033[0m\n'
+    print dump_string
+    dump_string = "mysqldump -u%s -p%s -S %s -R --default-character-set='utf8' " \
+                  "--master-data=1 --skip-add-drop-table " \
+                  "--skip-add-locks --skip-comments --skip-disable-keys --databases %s" % \
+                  (CONF.gopdb.localroot, CONF.gopdb.localpass, CONF.sockfile,
+                   ' '.join(schemas))
+    print '\n\033[1;32;40m----------------------data dump--------------------\033[0m\n'
+    print dump_string
+    print '\n\033[1;32;40m----------------------dump end----------------------\033[0m'
 
 def main():
     try:
@@ -346,7 +374,7 @@ def main():
         if func not in ('list', 'show', 'create', 'delete', 'active', 'start', 'stop', 'status', 'dump'):
             raise ValueError
     except (IndexError, ValueError):
-        print 'action is:  list  create  active  delete  status  start  stop dump'
+        print 'action is:  list  create  active  delete  status  start  stop  dump'
         print 'use -h for help'
         sys.exit(1)
     func = eval(func)
