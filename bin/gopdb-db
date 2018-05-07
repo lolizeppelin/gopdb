@@ -85,6 +85,11 @@ dump_opts = [
         'admin',
         default='root',
         help='Remote admin user name'
+    ),
+    cfg.StrOpt(
+        'character',
+        default='utf8',
+        help='Dump character set'
     )
 ]
 
@@ -354,15 +359,15 @@ def dump():
     conn.close()
 
     dump_string = "mysqldump -u%s -p%s -S %s -t --skip-extended-insert --skip-add-drop-table " \
-                  "--skip-add-locks --skip-comments --skip-disable-keys --default-character-set='utf8'" \
+                  "--skip-add-locks --skip-comments --skip-disable-keys --default-character-set='%s'" \
                   "--databases mysql --tables user db --where=\"user !='%s'\"" % \
-                  (CONF.gopdb.localroot, CONF.gopdb.localpass, CONF.sockfile, CONF.admin)
+                  (CONF.gopdb.localroot, CONF.gopdb.localpass, CONF.sockfile, CONF.character, CONF.admin)
     print '\033[1;32;40m----------------------user dump--------------------\033[0m\n'
     print dump_string
-    dump_string = "mysqldump -u%s -p%s -S %s -R --default-character-set='utf8' " \
+    dump_string = "mysqldump -u%s -p%s -S %s -R --default-character-set='%s' " \
                   "--master-data=1 --skip-add-drop-table " \
                   "--skip-add-locks --skip-comments --skip-disable-keys --databases %s" % \
-                  (CONF.gopdb.localroot, CONF.gopdb.localpass, CONF.sockfile,
+                  (CONF.gopdb.localroot, CONF.gopdb.localpass, CONF.sockfile, CONF.character,
                    ' '.join(schemas))
     print '\n\033[1;32;40m----------------------data dump--------------------\033[0m\n'
     print dump_string
