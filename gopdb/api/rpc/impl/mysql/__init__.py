@@ -586,7 +586,7 @@ class DatabaseManager(DatabaseManagerBase):
                 LOG.info('Bond fail, revoke user privilege success')
                 raise e
 
-    def replication_status(self, cfgfile, postrun, timeout, dbinfo, **kwargs):
+    def replication_status(self, cfgfile, postrun, timeout, **kwargs):
         """get slave replication status"""
         conf = CONF[common.DB]
         config = self.config_cls.load(cfgfile)
