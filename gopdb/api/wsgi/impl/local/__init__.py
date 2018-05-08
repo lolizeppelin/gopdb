@@ -376,6 +376,30 @@ class DatabaseManager(DatabaseManagerBase):
             auth['schema'] = '*'
             return self._revoke_database_user(master, auth, req=req)
 
+    def _revoke_database_user(self, database, auth, **kwargs):
+        req = kwargs.pop('req')
+        entity = int(database.reflection_id)
+        _entity = entity_controller.show(req=req, entity=entity,
+                                         endpoint=common.DB, body={'ports': False})['data'][0]
+        agent_id = _entity['agent_id']
+        metadata = _entity['metadata']
+        if not metadata:
+            raise InvalidArgument('Traget database agent is offline')
+        target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                    metadata.get('host'))
+        target.namespace = common.DB
+        rpc = get_client()
+        finishtime, timeout = rpcfinishtime()
+        rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime, 'agents': [agent_id, ]},
+                           msg={'method': 'revoke_entity',
+                                'args': dict(entity=entity, auth=auth)},
+                           timeout=timeout)
+        if not rpc_ret:
+            raise RpcResultError('revoke grant from database result is None')
+        if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+            raise RpcResultError('revoke grant from database fail %s' % rpc_ret.get('result'))
+        return rpc_ret
+
     def _slave_database(self, session, master, slave, **kwargs):
         req = kwargs.pop('req')
         with session.begin(subtransactions=True):
@@ -412,29 +436,37 @@ class DatabaseManager(DatabaseManagerBase):
                 raise RpcResultError('bond slave for master database fail %s' % rpc_ret.get('result'))
             return rpc_ret
 
-    def _revoke_database_user(self, database, auth, **kwargs):
+    def _ready_relation(self, session, master, slave, relation, **kwargs):
         req = kwargs.pop('req')
-        entity = int(database.reflection_id)
-        _entity = entity_controller.show(req=req, entity=entity,
-                                         endpoint=common.DB, body={'ports': False})['data'][0]
-        agent_id = _entity['agent_id']
-        metadata = _entity['metadata']
-        if not metadata:
-            raise InvalidArgument('Traget database agent is offline')
-        target = targetutils.target_agent_by_string(metadata.get('agent_type'),
-                                                    metadata.get('host'))
-        target.namespace = common.DB
-        rpc = get_client()
-        finishtime, timeout = rpcfinishtime()
-        rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime, 'agents': [agent_id, ]},
-                           msg={'method': 'revoke_entity',
-                                'args': dict(entity=entity, auth=auth)},
-                           timeout=timeout)
-        if not rpc_ret:
-            raise RpcResultError('revoke grant from database result is None')
-        if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
-            raise RpcResultError('revoke grant from database fail %s' % rpc_ret.get('result'))
-        return rpc_ret
+        entity = int(slave.reflection_id)
+        with session.begin(subtransactions=True):
+            schemas = [schema.schema for schema in master.schemas]
+            _host, _port = self._get_entity(req, int(master.reflection_id), raise_error=True)
+            _entity = entity_controller.show(req=req, entity=entity,
+                                             endpoint=common.DB, body={'ports': False})['data'][0]
+            agent_id = _entity['agent_id']
+            metadata = _entity['metadata']
+            if not metadata:
+                raise InvalidArgument('Traget database agent is offline')
+            target = targetutils.target_agent_by_string(metadata.get('agent_type'),
+                                                        metadata.get('host'))
+            target.namespace = common.DB
+            rpc = get_client()
+            finishtime, timeout = rpcfinishtime()
+            # 发送master信息到从库所在agent
+            rpc_ret = rpc.call(target, ctxt={'finishtime': finishtime, 'agents': [agent_id, ]},
+                               msg={'method': 'entity_replication_ready',
+                                    'args': dict(entity=entity,
+                                                 master=dict(database_id=master.database_id,
+                                                             host=_host, port=_port, schemas=schemas))},
+                               timeout=timeout)
+            if not rpc_ret:
+                raise RpcResultError('get replication status result is None')
+            if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
+                raise RpcResultError('get replication status fail %s' % rpc_ret.get('result'))
+            # 绑定状态设置就绪
+            relation.ready = True
+            return rpc_ret
 
     # ----------schema action-------------
     @contextlib.contextmanager

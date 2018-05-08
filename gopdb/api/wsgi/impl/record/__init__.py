@@ -178,6 +178,9 @@ class DatabaseManager(DatabaseManagerBase):
     def _slave_database(self, session, master, slave, **kwargs):
         raise NotImplementedError('Wait!!!')
 
+    def _ready_relation(self, session, master, slave, relation, **kwargs):
+        raise NotImplementedError('Wait!!!')
+
     @contextlib.contextmanager
     def _show_schema(self, session, database, schema, **kwargs):
         _record = model_query(session, RecordDatabase,

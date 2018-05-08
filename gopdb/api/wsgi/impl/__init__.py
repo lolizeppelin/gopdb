@@ -385,6 +385,10 @@ class DatabaseManagerBase(object):
     def _bond_database(self, session, master, slave, relation, **kwargs):
         """impl bond slave database"""
 
+    @abc.abstractmethod
+    def _revoke_database_user(self, database, auth, **kwargs):
+        """impl unbond slave database"""
+
     def unbond_database(self, database_id, **kwargs):
         master_id = kwargs.pop('master')
         force = kwargs.get('force')
@@ -469,9 +473,33 @@ class DatabaseManagerBase(object):
     def _slave_database(self, session, master, slave, **kwargs):
         """impl unbond slave database"""
 
+    def ready_relation(self, database_id, **kwargs):
+        slave_id = kwargs.pop('slave')
+        force = kwargs.pop('force')
+        session = endpoint_session()
+        query = model_query(session, GopSalveRelation, filter=and_(GopSalveRelation.master_id == database_id,
+                                                                   GopSalveRelation.slave_id == slave_id))
+        with session.begin(subtransactions=True):
+            relation = query.one_or_none()
+            if not relation:
+                raise InvalidArgument('Can not find relation of master %d slave %d' % (database_id, slave_id))
+            if relation.ready:
+                return None
+            if force:
+                relation.ready = True
+                return None
+            query = model_query(session, GopDatabase, filter=GopDatabase.database_id.in_([database_id, slave_id]))
+            query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
+            for database in query:
+                if database.database_id == database_id:
+                    master = database
+                elif database.database_id == slave_id:
+                    slave = database
+            return self._ready_relation(session, master, slave, relation, **kwargs)
+
     @abc.abstractmethod
-    def _revoke_database_user(self, database, auth, **kwargs):
-        """impl unbond slave database"""
+    def _ready_relation(self, session, master, slave, relation, **kwargs):
+        """impl check ready"""
 
     # ----------schema action-------------
 

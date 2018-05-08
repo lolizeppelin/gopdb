@@ -504,8 +504,25 @@ class Application(AppEndpointBase):
             if not p:
                 return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                                   ctxt=ctxt,
-                                                  result='revoke entity faile, process not exist')
+                                                  result='revoke entity fail, process not exist')
             dbmanager.revoke(cfgfile, postrun=None, timeout=None, **kwargs)
         return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
                                           ctxt=ctxt,
                                           result='revoke to master success')
+
+    def rpc_entity_replication_ready(self, ctxt, entity, **kwargs):
+        dbtype = self._dbtype(entity)
+        dbmanager = utils.impl_cls('rpc', dbtype)
+        cfgfile = self._db_conf(entity, dbtype)
+        with self.lock(entity, timeout=3):
+            p = self._entity_process(entity)
+            if not p:
+                return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                                  ctxt=ctxt,
+                                                  result='get replication status fail, process not exist')
+            success, msg = dbmanager.replication_status(cfgfile, postrun=None, timeout=None, **kwargs)
+        return resultutils.AgentRpcResult(agent_id=self.manager.agent_id,
+                                          resultcode=manager_common.RESULT_SUCCESS
+                                          if success else manager_common.RESULT_ERROR,
+                                          ctxt=ctxt,
+                                          result=msg)

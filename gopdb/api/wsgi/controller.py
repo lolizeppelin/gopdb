@@ -117,6 +117,15 @@ class DatabaseReuest(BaseContorller):
         }
     }
 
+    SLAVEREADY = {
+        'type': 'object',
+        'required': ['slave'],
+        'properties': {
+            'slave': {'type': 'integer', 'minimum': 1, 'description': '从库ID'},
+            'force': {'type': 'boolean', 'description': '忽略主从同步检查直接设置为ready'},
+        }
+    }
+
     def reflect(self, req, impl, body=None):
         body = body or {}
         kwargs = dict(req=req)
@@ -304,6 +313,16 @@ class DatabaseReuest(BaseContorller):
         dbmanager = _impl(database_id)
         dbresult = dbmanager.slave_database(database_id, **kwargs)
         return resultutils.results(result='master bond slave database success', data=[dbresult, ])
+
+    def ready(self, req, database_id, body=None):
+        body = body or {}
+        jsonutils.schema_validate(body, self.SLAVEREADY)
+        database_id = int(database_id)
+        kwargs = dict(req=req)
+        kwargs.update(body)
+        dbmanager = _impl(database_id)
+        dbresult = dbmanager.ready_relation(database_id, **kwargs)
+        return resultutils.results(result='Set relation to ready success', data=[dbresult, ])
 
 @singleton.singleton
 class SchemaReuest(BaseContorller):

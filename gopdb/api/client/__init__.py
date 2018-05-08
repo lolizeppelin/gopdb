@@ -149,6 +149,15 @@ class GopDBClient(GopHttpClientApi):
                                             resone=results['result'])
         return results
 
+    def replication_ready(self, database_id, body=None):
+        resp, results = self.put(action=self.database_path_ex % (str(database_id), 'ready'), body=body)
+        if results['resultcode'] != common.RESULT_SUCCESS:
+            raise ServerExecuteRequestError(message='check replication ready %s fail:%d' %
+                                                    (str(database_id), results['resultcode']),
+                                            code=resp.status_code,
+                                            resone=results['result'])
+        return results
+
     # schemas api
 
     def schemas_create(self, database_id, body):

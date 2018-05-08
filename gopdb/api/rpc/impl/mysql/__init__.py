@@ -586,6 +586,45 @@ class DatabaseManager(DatabaseManagerBase):
                 LOG.info('Bond fail, revoke user privilege success')
                 raise e
 
+    def replication_status(self, cfgfile, postrun, timeout, dbinfo, **kwargs):
+        """get slave replication status"""
+        conf = CONF[common.DB]
+        config = self.config_cls.load(cfgfile)
+        sockfile = config.get('socket')
+
+        master = kwargs.pop('master')
+        schemas = set(master.pop('schemas'))
+        master_name = 'masterdb-%(database_id)s' % master
+
+        if_success = False
+        msg = 'channel name %s not found' % master_name
+
+        with self._lower_conn(sockfile, conf.localroot, conf.localpass,
+                              schema=None, raise_on_warnings=False) as conn:
+            if schemas - set(self._schemas(conn)):
+                msg = 'Miss schemas %s' % '|'.join(list(schemas - set(self._schemas(conn))))
+            else:
+                slaves = self._slave_status(conn)
+                for slave_status in slaves:
+                    channel = slave_status.get('Connection_name')
+                    host = slave_status.get('Master_Host')
+                    port = slave_status.get('Master_Port')
+                    if channel == master_name:
+                        if host != master.get('host') or port != master.get('port'):
+                            msg = 'Channel name match, but host or port not match'
+                            break
+                        if slave_status.get('Slave_IO_Running').lower() != 'yes' \
+                                or slave_status.get('Slave_SQL_Running').lower() != 'yes':
+                            msg = 'Channel find, but slave thread not running'
+                            break
+                        if_success = True
+        if if_success:
+            if postrun:
+                postrun()
+        else:
+            LOG.debug(msg)
+        return if_success, msg
+
     def install(self, cfgfile, postrun, timeout, **kwargs):
         """create database intance"""
         if not os.path.exists(cfgfile):
