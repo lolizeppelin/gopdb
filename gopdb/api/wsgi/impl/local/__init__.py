@@ -336,7 +336,7 @@ class DatabaseManager(DatabaseManagerBase):
             if rpc_ret.get('resultcode') != manager_common.RESULT_SUCCESS:
                 raise RpcResultError('bond database fail %s' % rpc_ret.get('result'))
             # 绑定状态设置就绪
-            relation.ready = True
+            relation.ready = True if not kwargs.get('schemas') else False
             return rpc_ret
 
     def _unbond_database(self, session, master, slave, relation, **kwargs):
