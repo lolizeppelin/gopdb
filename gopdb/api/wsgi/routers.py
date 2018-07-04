@@ -60,6 +60,7 @@ class Routers(router.RoutersBase):
                                        member_actions=MEMBER_ACTIONS)
         collection.member.link('copy', method='POST')
         collection.member.link('bond', method='POST')
+        collection.member.link('phpadmin', method='POST')
 
         self._add_resource(mapper, schema_controller,
                            path='/%s/quotes/{quote_id}' % common.DB,

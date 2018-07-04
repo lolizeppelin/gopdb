@@ -21,6 +21,7 @@ from simpleservice.rpc.exceptions import NoSuchMethod
 from goperation.manager.exceptions import CacheStoneError
 from goperation.manager.utils import resultutils
 from goperation.manager.wsgi.contorller import BaseContorller
+from goperation.manager.wsgi.cache.controller import CacheReuest
 from goperation.manager.wsgi.endpoint.controller import EndpointReuest
 from goperation.manager.wsgi.entity.controller import EntityReuest
 from goperation.manager.wsgi.exceptions import RpcPrepareError
@@ -59,6 +60,7 @@ FAULT_MAP = {InvalidArgument: webob.exc.HTTPClientError,
 
 entity_controller = EntityReuest()
 endpoint_controller = EndpointReuest()
+cache_controller = CacheReuest()
 
 
 @singleton.singleton
@@ -514,6 +516,37 @@ class SchemaReuest(BaseContorller):
                                               user=user,
                                               passwd=passwd,
                                               schema=schema)])
+
+    def phpadmin(self, req, database_id, schema, body=None):
+        body = body or {}
+        slave = body.get('slave', True)
+        session = endpoint_session(readonly=True)
+        query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id == database_id,
+                                                              GopDatabase.slave == 0))
+        query = query.options(joinedload(GopDatabase.schemas, innerjoin=False))
+        _database = query.one()
+        _schema = None
+        for __schema in _database.schemas:
+            if __schema.schema == schema:
+                _schema = __schema
+                break
+        if not _schema:
+            raise InvalidArgument('Schema %s not found' % schema)
+        target = _database.database_id
+        user = _schema.user
+        passwd = _schema.passwd
+        if slave:
+            slaves = [_slave.slave_id for _slave in _database.slaves if _slave.ready]
+            if slaves:
+                target = slaves[0]
+            else:
+                LOG.warning('Not slave database, use master database as slave')
+            user = _schema.ro_user
+            passwd = _schema.ro_passwd
+        address = _address([target, ]).get(target)
+        port = address.get('port')
+        host = address.get('host')
+        return cache_controller.create(req, body=dict(host=host, port=port, user=user, passwd=passwd))
 
     def unquote(self, req, quote_id, body=None):
         """schema unquote"""
