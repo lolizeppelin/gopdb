@@ -546,7 +546,10 @@ class SchemaReuest(BaseContorller):
         address = _address([target, ]).get(target)
         port = address.get('port')
         host = address.get('host')
-        return cache_controller.create(req, body=dict(host=host, port=port, user=user, passwd=passwd))
+        name = body.get('name') or 'unkonwn'
+        return cache_controller.create(req, body=dict(host=host, port=port, user=user, passwd=passwd,
+                                                      schema=schema,
+                                                      client=req.client_addr, name=name))
 
     def unquote(self, req, quote_id, body=None):
         """schema unquote"""
