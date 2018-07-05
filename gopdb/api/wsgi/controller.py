@@ -520,6 +520,7 @@ class SchemaReuest(BaseContorller):
     def phpadmin(self, req, database_id, schema, body=None):
         body = body or {}
         slave = body.get('slave', True)
+        name = body.get('name') or ('unkonwn %s' % 'slave' if slave else 'master')
         session = endpoint_session(readonly=True)
         query = model_query(session, GopDatabase, filter=and_(GopDatabase.database_id == database_id,
                                                               GopDatabase.slave == 0))
@@ -546,7 +547,6 @@ class SchemaReuest(BaseContorller):
         address = _address([target, ]).get(target)
         port = address.get('port')
         host = address.get('host')
-        name = body.get('name') or 'unkonwn'
         return cache_controller.create(req, body=dict(host=host, port=port, user=user, passwd=passwd,
                                                       schema=schema,
                                                       client=req.client_addr, name=name))
