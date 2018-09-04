@@ -672,7 +672,7 @@ class DatabaseManager(DatabaseManagerBase):
         """update database config"""
         dbconfig = self.config_cls.loads(**configs)
         dbconfig.save(cfgfile)
-        systemutils.chmod(cfgfile, 022)
+        systemutils.chmod(cfgfile, 0o644)
 
     def _init_passwd(self, cfgfile, auth, replication):
         """init password for database"""
