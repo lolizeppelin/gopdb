@@ -7,8 +7,11 @@
 # From gopdb
 #
 
-# Manager extend route module string (multi import string)
+# Extend route module string (multi import string)
 #routes = gopdb.api.wsgi.routers
+
+# Public open route module string (multi import string)
+#publics =
 
 # The SQLAlchemy connection string to use to connect to the database. (string
 # value)
@@ -17,6 +20,9 @@
 # The SQLAlchemy connection string to use to connect to the slave database.
 # (string value)
 #slave_connection = <None>
+
+# Record raw sql to log(set echo of SQLAlchemy to true) (boolean value)
+#debug = false
 
 # The SQL mode to be used for MySQL sessions. This option, including the
 # default, overrides any server-set SQL mode. To use whatever SQL mode is set
