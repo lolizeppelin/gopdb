@@ -315,7 +315,10 @@ class DatabaseManager(DatabaseManagerBase):
                 with open(BASELOG, 'ab') as f:
                     os.dup2(f.fileno(), 1)
                     os.dup2(f.fileno(), 2)
-                os.execv(SH, args)
+                try:
+                    os.execv(SH, args)
+                except OSError:
+                    os._exit(1)
             else:
                 os._exit(0)
         else:
@@ -646,7 +649,10 @@ class DatabaseManager(DatabaseManagerBase):
                     with open(logfile, 'wb') as f:
                         os.dup2(f.fileno(), 1)
                         os.dup2(f.fileno(), 2)
-                    os.execv(SH, args)
+                    try:
+                        os.execv(SH, args)
+                    except OSError:
+                        os._exit(1)
                 else:
                     try:
                         wait(pid, timeout)
