@@ -7,10 +7,10 @@
 # From gopdb
 #
 
-# Extend route module string (multi import string)
+# Private route module string (multi import string)
 #routes = gopdb.api.wsgi.routers
 
-# Public open route module string (multi import string)
+# Public route module string (multi import string)
 #publics =
 
 # The SQLAlchemy connection string to use to connect to the database. (string
