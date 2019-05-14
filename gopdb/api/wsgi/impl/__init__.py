@@ -691,22 +691,29 @@ class DatabaseManagerBase(object):
             squery = squery.options(joinedload(GopSchema.quotes, innerjoin=False))
             _schema = squery.one()
             _result.setdefault('schema_id', _schema.schema_id)
-            if _schema.quotes:
-                quotes = {}
-                for _quote in _schema.quotes:
-                    quotes[_quote.quote_id] = _quote.desc
-                for quote_id, desc in quotes.items():
-                    if quote_id in unquotes:
-                        quotes.pop(quote_id, None)
-                    if desc in ignores:
-                        quotes.pop(quote_id, None)
-                if quotes:
-                    if force:
-                        for quote in _schema.quotes:
-                            if quote.quote_id in quotes.keys():
-                                LOG.warning('Quote %d: [%s] ignore' % (quote.quote_id, quote.desc))
-                    if not force:
-                        raise exceptions.AcceptableSchemaError('Schema in quote, can not be delete')
+            _slaves = [_slave.database_id for _slave in _database.slaves]
+            _slaves_q_query = model_query(session, SchemaQuote,
+                                          filter=and_(SchemaQuote.schema_id == _schema.schema_id,
+                                                      SchemaQuote.database_id.in_(_slaves)))
+            # quote of slave
+            slave_quotes = _slaves_q_query.all()
+            for _quotes_list in (slave_quotes, _schema.quotes):
+                if _quotes_list:
+                    quotes = {}
+                    for _quote in _quotes_list:
+                        quotes[_quote.quote_id] = _quote.desc
+                    for quote_id, desc in quotes.items():
+                        if quote_id in unquotes:
+                            quotes.pop(quote_id, None)
+                        if desc in ignores:
+                            quotes.pop(quote_id, None)
+                    if quotes:
+                        if force:
+                            for quote in _quotes_list:
+                                if quote.quote_id in quotes.keys():
+                                    LOG.warning('Quote %d: [%s] ignore' % (quote.quote_id, quote.desc))
+                        if not force:
+                            raise exceptions.AcceptableSchemaError('Schema in quote, can not be delete')
             with self._delete_schema(session, _database, _schema, **kwargs) as address:
                 host = address[0]
                 port = address[1]

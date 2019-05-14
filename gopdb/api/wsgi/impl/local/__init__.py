@@ -530,9 +530,9 @@ class DatabaseManager(DatabaseManagerBase):
             raise exceptions.AcceptableDbError('Can not find Database port, not init finished')
         if not local_ip:
             raise exceptions.AcceptableDbError('Database agent is offline now')
-        engine = create_engine(connformater % dict(user=database.user, passwd=database.passwd,
-                                                   schema=schema.schema, host=local_ip, port=port),
-                               thread_checkin=False, poolclass=NullPool)
+        conn = connformater % dict(user=database.user, passwd=database.passwd,
+                                   schema=schema.schema, host=local_ip, port=port)
+        engine = create_engine(conn, thread_checkin=False, poolclass=NullPool)
         dropauths = None
         if schema.user != database.user:
             dropauths = privilegeutils.mysql_privileges(schema)
