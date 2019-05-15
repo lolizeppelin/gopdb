@@ -712,7 +712,7 @@ class DatabaseManagerBase(object):
                 if force:
                     for quote_id, desc in quotes.items():
                         LOG.warning('Quote %d: [%s] force delete' % (quote_id, desc))
-                if not force:
+                else:
                     raise exceptions.AcceptableSchemaError('Schema in quote, can not be delete')
             with self._delete_schema(session, _database, _schema, **kwargs) as address:
                 host = address[0]
