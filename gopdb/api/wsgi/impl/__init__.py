@@ -137,7 +137,7 @@ class DatabaseManagerBase(object):
     def show_database(self, database_id, **kwargs):
         """show database info"""
         session = endpoint_session(readonly=True)
-        quotes = kwargs.pop('quotes')
+        quotes = kwargs.pop('quotes', False)
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id == database_id)
         _database = query.one()
         if _database.slave:
