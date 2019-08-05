@@ -326,6 +326,20 @@ class DatabaseReuest(BaseContorller):
         dbresult = dbmanager.ready_relation(database_id, **kwargs)
         return resultutils.results(result='Set relation to ready success', data=[dbresult, ])
 
+    @staticmethod
+    def slaves_address(databases):
+        dbmanager = None
+        databases = set(databases)
+        for database_id in databases:
+            _dbmanager = _impl(database_id)
+            if dbmanager is None:
+                dbmanager = _dbmanager
+                continue
+            if dbmanager is not _dbmanager:
+                raise InvalidArgument('Database impl not the same')
+        return dbmanager.slaves_address(databases)
+
+
 @singleton.singleton
 class SchemaReuest(BaseContorller):
 
