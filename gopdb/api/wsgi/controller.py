@@ -335,7 +335,7 @@ class DatabaseReuest(BaseContorller):
             if dbmanager is None:
                 dbmanager = _dbmanager
                 continue
-            if dbmanager is not _dbmanager:
+            if dbmanager.__class__ is not _dbmanager.__class__:
                 raise InvalidArgument('Database impl not the same')
         return dbmanager.slaves_address(databases)
 

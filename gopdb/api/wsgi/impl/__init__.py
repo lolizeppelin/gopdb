@@ -78,14 +78,14 @@ class DatabaseManagerBase(object):
         session = endpoint_session(readonly=True)
         query = model_query(session, GopDatabase, filter=GopDatabase.database_id.in_(databases))
         databases = query.all()
-        slaves = set([slave.database_id for database in databases for slave in database.slaves])
+        slaves = set([slave.slave_id for database in databases for slave in database.slaves])
         address_maps = self.address(slaves)
         results = {}
         for database in databases:
             results[database.database_id] = []
             for slave in database.slaves:
-                results[database.database_id].append({'database_id': slave.database_id,
-                                                      'address': address_maps[slave.database_id]})
+                results[database.database_id].append({'database_id': slave.slave_id,
+                                                      'address': address_maps[slave.slave_id]})
         return results
 
     def select_database(self, **kwargs):
