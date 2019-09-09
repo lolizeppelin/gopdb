@@ -707,7 +707,7 @@ class DatabaseManagerBase(object):
             squery = squery.options(joinedload(GopSchema.quotes, innerjoin=False))
             _schema = squery.one()
             _result.setdefault('schema_id', _schema.schema_id)
-            _slaves = [_slave.database_id for _slave in _database.slaves]
+            _slaves = [_slave.slave_id for _slave in _database.slaves]
             _slaves_q_query = model_query(session, SchemaQuote,
                                           filter=and_(SchemaQuote.schema_id == _schema.schema_id,
                                                       SchemaQuote.database_id.in_(_slaves)))
