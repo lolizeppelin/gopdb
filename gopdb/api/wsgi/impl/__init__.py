@@ -710,7 +710,7 @@ class DatabaseManagerBase(object):
             _slaves = [_slave.slave_id for _slave in _database.slaves]
             _slaves_q_query = model_query(session, SchemaQuote,
                                           filter=and_(SchemaQuote.schema_id == _schema.schema_id,
-                                                      SchemaQuote.database_id.in_(_slaves)))
+                                                      SchemaQuote.qdatabase_id.in_(_slaves)))
             quotes = {}
             # quote of slave
             slave_quotes = _slaves_q_query.all()
