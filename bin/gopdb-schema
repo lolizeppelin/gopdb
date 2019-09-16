@@ -64,7 +64,6 @@ del_opts = [
 ]
 
 
-
 def client(session=None):
     return GopDBClient(httpclient=ManagerClient(url=CONF.gcenter, port=CONF.gcenter_port,
                                                 retries=CONF.retries, timeout=CONF.apitimeout,
@@ -219,8 +218,126 @@ def show():
     print('\033[0m')
 
 
+
+def cleanup():
+    cleanup_opts = [
+        cfg.StrOpt('prefix',
+                   required=True,
+                   help='Database schema prefix',
+                   ),
+        cfg.IntOpt('start',
+                   required=True,
+                   short='s',
+                   min=1,
+                   help='Database schema postfix start id',
+                   ),
+        cfg.IntOpt('end',
+                   min=2,
+                   help='Database schema postfix end id',
+                   ),
+        cfg.BoolOpt('execute',
+                    short='e',
+                    default=False,
+                    help='Execute delete or just show',
+                    )
+    ]
+
+    CONF.register_cli_opts(cleanup_opts)
+    CONF(project='cmd')
+
+    postfix_start_id = CONF.start
+    postfix_end_id = CONF.end or 4294967295
+
+    prefix = CONF.prefix + '_'
+
+    _client = client()
+    code, result, data = prepare_results(_client.databases_index, body=None)
+    if code:
+        print('\033[1;31;40m')
+        print 'Fail, code %d, result %s' % (code, result)
+        if data:
+            print data
+        print('\033[0m')
+        sys.exit(1)
+
+    targets = []
+    for database in data:
+        if database['slave']:
+            continue
+        code, result, sdata = prepare_results(_client.schemas_index, str(database['database_id']), body=None)
+        if code:
+            print('\033[1;31;40m')
+            print 'Fail, code %d, result %s' % (code, result)
+            if sdata:
+                print sdata
+            print('\033[0m')
+            sys.exit(1)
+        for schema in sdata:
+            if not schema['schema'].startswith(prefix):
+                continue
+            schema_ref_id = int(schema['schema'].replace(prefix, ''))
+            if postfix_start_id <= schema_ref_id < postfix_end_id:
+                targets.append({
+                    'database_id': database['database_id'],
+                    'schema': schema['schema'],
+                })
+
+    import mysql.connector
+    import contextlib
+
+    @contextlib.contextmanager
+    def connect(user, passwd, host, port, schema):
+        kwargs = dict(user=user, passwd=passwd, host=host, port=port, database=schema)
+        conn = mysql.connector.connect(**kwargs)
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    for target in targets:
+        code, result, data = prepare_results(_client.schemas_show, target['database_id'],
+                                             schema=target['schema'],
+                                             body=dict(secret=True, quotes=True))
+        if code:
+            print('\033[1;31;40m')
+            print 'Fail, code %d, result %s' % (code, result)
+            if data:
+                print data
+            print('\033[0m')
+            sys.exit(1)
+
+        schema = data[0]
+        quotes = schema.get('quotes')
+
+        with connect(schema.get('user'), schema.get('passwd'), schema.get('host'),
+                     schema.get('port'), target['schema']) as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute('SHOW TABLES')
+            tables = cursor.fetchall()
+            cursor.close()
+
+        if tables:
+            print('%s has tabels' % target['schema'])
+            continue
+        if CONF.execute:
+            print('Try delete schema %s' % target['schema'])
+            body = dict(unquotes=[quote['quote_id'] for quote in quotes])
+            code, result, data = prepare_results(_client.schemas_delete,
+                                                 target['database_id'], target['schema'], body=body)
+            if code:
+                print('\033[1;31;40m')
+                print 'Fail, code %d, result %s' % (code, result)
+                if data:
+                    print data
+                print('\033[0m')
+                sys.exit(1)
+            print('Delete schema %s success' % target['schema'])
+        else:
+            print('Need delete schema %s' % target['schema'])
+
+
 def main():
-    FUNCS = ['list', 'create', 'show', 'delete']
+    FUNCS = ['list', 'create', 'show', 'delete', 'cleanup']
     try:
         func = sys.argv.pop(1)
         if func not in FUNCS:
